@@ -110,7 +110,11 @@ class MainActivity : Activity() {
     private var filterTransitionGeneration = 0
 
     private val wallpaperColorsChangedListener = WallpaperManager.OnColorsChangedListener { _: WallpaperColors?, _: Int ->
-        if (::preferences.isInitialized && preferences.appearance == Appearance.AUTO && ::contrastOverlay.isInitialized) {
+        if (
+            ::preferences.isInitialized &&
+            (preferences.appearance == Appearance.AUTO || preferences.drawerSurfaceMode == DrawerSurfaceMode.WALLPAPER) &&
+            ::contrastOverlay.isInitialized
+        ) {
             applyAppearance()
         }
     }
@@ -494,6 +498,23 @@ class MainActivity : Activity() {
         }
 
         addSettingsSection(body, "search")
+        addSettingsRow(
+            body,
+            "Search backdrop",
+            "Surface behind search and filter controls",
+            preferences.drawerSurfaceMode.displayName,
+        ) { showDrawerSurfaceModeEditor() }
+        addSettingsRow(
+            body,
+            "Backdrop color",
+            if (preferences.drawerSurfaceMode == DrawerSurfaceMode.CUSTOM) {
+                "Current custom search backdrop"
+            } else {
+                "Available when Search backdrop is Custom"
+            },
+            formatColor(preferences.drawerSurfaceColor),
+            enabled = preferences.drawerSurfaceMode == DrawerSurfaceMode.CUSTOM,
+        ) { showDrawerSurfaceColorEditor() }
         addSettingsRow(body, "Open keyboard automatically", "Search remains focused for physical keyboards", onOff(preferences.autoShowKeyboard)) {
             preferences.autoShowKeyboard = !preferences.autoShowKeyboard
             renderSettingsPage()
@@ -511,7 +532,7 @@ class MainActivity : Activity() {
         addSettingsRow(body, "App-list margins", "Top and right spacing", "${preferences.appListTopMarginDp} / ${preferences.appListRightMarginDp} dp") {
             showAppListMarginsEditor()
         }
-        addSettingsRow(body, "Bottom fade", "Fade app rows into drawer controls", onOff(preferences.showDrawerGradient)) {
+        addSettingsRow(body, "Bottom fade", "Fade app rows into the selected search backdrop", onOff(preferences.showDrawerGradient)) {
             preferences.showDrawerGradient = !preferences.showDrawerGradient
             applyDrawerPresentation()
             renderSettingsPage()
@@ -531,6 +552,12 @@ class MainActivity : Activity() {
         addSettingsRow(body, "Font family", "Choose the launcher typeface", preferences.launcherFont.displayName) {
             showFontFamilyEditor()
         }
+        addSettingsRow(
+            body,
+            "Text capitalization",
+            "App names, filters, date, weather, and launcher labels",
+            preferences.textTransform.displayName,
+        ) { showTextTransformEditor() }
         addSettingsRow(body, "Font size", "Launcher text scale", "${preferences.fontScalePercent}%") { showFontSizeEditor() }
         addSettingsRow(body, "Font color", "Primary launcher text", formatColor(preferences.fontColor)) { showColorEditor(accent = false) }
         addSettingsRow(body, "Accent color", "Filters, controls, and highlights", formatColor(preferences.accentColor)) { showColorEditor(accent = true) }
@@ -738,7 +765,6 @@ class MainActivity : Activity() {
         }
         dateView = styledText(10f, secondaryColor, mediumTypeface).apply {
             letterSpacing = 0.08f
-            isAllCaps = true
         }
         weatherView = styledText(10f, wallpaperSecondaryColor, regularTypeface).apply {
             visibility = View.GONE
@@ -754,7 +780,7 @@ class MainActivity : Activity() {
         })
 
         homeRolePrompt = Button(this).apply {
-            text = getString(R.string.not_default_home_switch)
+            text = launcherText(getString(R.string.not_default_home_switch))
             contentDescription = "Minimal Launcher is not the default Home app. Switch Home app."
             gravity = Gravity.END or Gravity.CENTER_VERTICAL
             isAllCaps = false
@@ -834,7 +860,7 @@ class MainActivity : Activity() {
         drawer.addView(appList, FrameLayout.LayoutParams(dp(300), dp(300)).apply { gravity = Gravity.END })
 
         emptyState = styledText(12f, secondaryColor, regularTypeface).apply {
-            text = getString(R.string.no_matching_apps)
+            text = launcherText(getString(R.string.no_matching_apps))
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
             gravity = Gravity.END or Gravity.TOP
             setPadding(0, dp(32), dp(22), 0)
@@ -898,7 +924,7 @@ class MainActivity : Activity() {
         }, LinearLayout.LayoutParams(dp(36), MATCH))
         searchInput = EditText(this).apply {
             id = View.generateViewId()
-            hint = "search"
+            hint = launcherText(getString(R.string.search_hint))
             contentDescription = getString(R.string.search_apps)
             setHintTextColor(secondaryColor)
             setTextColor(primaryColor)
@@ -947,7 +973,7 @@ class MainActivity : Activity() {
             filtersView.addView(Button(this).apply {
                 id = View.generateViewId()
                 tag = filter
-                text = filter.displayName
+                text = launcherText(filter.displayName)
                 contentDescription = "${filter.displayName} apps filter"
                 isAllCaps = false
                 typeface = regularTypeface
@@ -1141,7 +1167,7 @@ class MainActivity : Activity() {
         val aliases = preferences.appAliases
         preferences.favorites.mapNotNull(byId::get).map { AppPresentationPolicy.presented(it, aliases) }.take(6).forEachIndexed { index, app ->
             favoritesView.addView(Button(this).apply {
-                text = app.label.lowercase(Locale.getDefault())
+                text = launcherText(app.label)
                 contentDescription = "Open ${app.label}"
                 gravity = Gravity.END or Gravity.CENTER_VERTICAL
                 isAllCaps = false
@@ -1167,7 +1193,7 @@ class MainActivity : Activity() {
         val scoped = FilterEngine.apply(catalog, currentFilter, membership(currentFilter))
         visibleApps = AppSearch.rank(scoped, searchInput.text?.toString().orEmpty())
         val header = DrawerHeaderPolicy.content(
-            currentFilter.displayName.lowercase(Locale.getDefault()),
+            launcherText(currentFilter.displayName),
             scoped.size,
         )
         drawerHeader.text = SpannableString(header.text).apply {
@@ -1452,7 +1478,7 @@ class MainActivity : Activity() {
         )
         timeView.text = SimpleDateFormat(timePattern, Locale.getDefault()).format(now)
         val datePattern = DateFormat.getBestDateTimePattern(Locale.getDefault(), "EEEddMMM")
-        dateView.text = SimpleDateFormat(datePattern, Locale.getDefault()).format(now).uppercase(Locale.getDefault())
+        dateView.text = launcherText(SimpleDateFormat(datePattern, Locale.getDefault()).format(now))
         updateWeather()
     }
 
@@ -1502,13 +1528,13 @@ class MainActivity : Activity() {
         if (!permissionGranted) {
             val decision = WeatherLocationPolicy.decide(WeatherLocationMode.APPROXIMATE, false, null, manual)
             if (decision == WeatherCoordinateDecision.PermissionRequired && locationDeniedThisSession) {
-                weatherView.text = getString(R.string.weather_location_denied)
+                setWeatherText(getString(R.string.weather_location_denied))
             } else renderWeatherCoordinateDecision(decision)
             return
         }
         if (System.currentTimeMillis() - weatherRequestedAt < WEATHER_REFRESH_INTERVAL_MS || locationRequestInFlight) return
         locationRequestInFlight = true
-        weatherView.text = getString(R.string.weather_loading)
+        setWeatherText(getString(R.string.weather_loading))
         coarseLocationResolver.resolve { approximate ->
             locationRequestInFlight = false
             if (!preferences.weatherEnabled || preferences.weatherLocationMode != WeatherLocationMode.APPROXIMATE) return@resolve
@@ -1529,16 +1555,16 @@ class MainActivity : Activity() {
     private fun renderWeatherCoordinateDecision(decision: WeatherCoordinateDecision) {
         when (decision) {
             is WeatherCoordinateDecision.Use -> loadWeather(decision.coordinates)
-            WeatherCoordinateDecision.PermissionRequired -> weatherView.text = getString(R.string.weather_location_permission_required)
-            WeatherCoordinateDecision.LocationUnavailable -> weatherView.text = getString(R.string.weather_location_unavailable)
-            WeatherCoordinateDecision.ManualLocationRequired -> weatherView.text = getString(R.string.weather_set_manual_location)
+            WeatherCoordinateDecision.PermissionRequired -> setWeatherText(getString(R.string.weather_location_permission_required))
+            WeatherCoordinateDecision.LocationUnavailable -> setWeatherText(getString(R.string.weather_location_unavailable))
+            WeatherCoordinateDecision.ManualLocationRequired -> setWeatherText(getString(R.string.weather_set_manual_location))
         }
     }
 
     private fun loadWeather(coordinates: WeatherCoordinates) {
         if (System.currentTimeMillis() - weatherRequestedAt < WEATHER_REFRESH_INTERVAL_MS) return
         weatherRequestedAt = System.currentTimeMillis()
-        weatherView.text = getString(R.string.weather_loading)
+        setWeatherText(getString(R.string.weather_loading))
         weatherRepository.load(
             coordinates.latitude,
             coordinates.longitude,
@@ -1546,7 +1572,7 @@ class MainActivity : Activity() {
         ) { result ->
             handler.post {
                 if (!preferences.weatherEnabled) return@post
-                weatherView.text = when (result) {
+                setWeatherText(when (result) {
                     is WeatherResult.Available -> with(result.snapshot) {
                         getString(
                             R.string.weather_summary,
@@ -1559,18 +1585,23 @@ class MainActivity : Activity() {
                         )
                     }
                     is WeatherResult.Unavailable -> result.message
-                }
+                })
             }
         }
     }
 
+    private fun setWeatherText(value: String) {
+        weatherView.text = launcherText(value)
+    }
+
     private fun applyAppearance() {
         val appearance = preferences.appearance
+        val wallpaperPrimaryColor = systemWallpaperPrimaryColor()
         root.setBackgroundColor(
             if (appearance == Appearance.SOLID) preferences.solidBackgroundColor else Color.TRANSPARENT,
         )
         val autoDecision = if (appearance == Appearance.AUTO) {
-            ContrastPolicy.decide(systemWallpaperPrimaryColor(), primaryColor)
+            ContrastPolicy.decide(wallpaperPrimaryColor, primaryColor)
         } else null
         val decision = when (appearance) {
             Appearance.TRANSPARENT -> AutoContrastDecision(ScrimTone.NONE, ScrimStrength.LIGHT)
@@ -1582,16 +1613,17 @@ class MainActivity : Activity() {
             GradientDrawable.Orientation.TOP_BOTTOM,
             fullScreenScrimColors(decision),
         )
-        val drawerSurfaceColor = if (appearance == Appearance.SOLID) preferences.solidBackgroundColor else Color.BLACK
+        val drawerSurfaceColor = DrawerSurfacePolicy.color(
+            preferences.drawerSurfaceMode,
+            appearance,
+            preferences.solidBackgroundColor,
+            preferences.drawerSurfaceColor,
+            wallpaperPrimaryColor,
+        )
         drawerBottomSurface.setBackgroundColor(drawerSurfaceColor)
         drawerFade.background = GradientDrawable(
             GradientDrawable.Orientation.TOP_BOTTOM,
-            intArrayOf(
-                Color.TRANSPARENT,
-                withAlpha(drawerSurfaceColor, 0x33),
-                withAlpha(drawerSurfaceColor, 0xB3),
-                drawerSurfaceColor,
-            ),
+            drawerSurfaceGradient(drawerSurfaceColor),
         )
         val localizedDecision = if (appearance == Appearance.AUTO) {
             ContrastPolicy.localizedFallback(decision, primaryColor)
@@ -1602,6 +1634,17 @@ class MainActivity : Activity() {
         dateView.setTextColor(if (localizedDecision.tone == ScrimTone.NONE) secondaryColor else wallpaperSecondaryColor)
         clockPanel.visibility = if (preferences.showBuiltInClock) View.VISIBLE else View.GONE
         root.post(::adaptHomeForWindow)
+    }
+
+    private fun drawerSurfaceGradient(surfaceColor: Int): IntArray = if (Color.alpha(surfaceColor) == 0) {
+        intArrayOf(Color.TRANSPARENT, Color.TRANSPARENT)
+    } else {
+        intArrayOf(
+            Color.TRANSPARENT,
+            withAlpha(surfaceColor, 0x33),
+            withAlpha(surfaceColor, 0xB3),
+            surfaceColor,
+        )
     }
 
     private fun showBuiltInClockActions() {
@@ -1698,6 +1741,49 @@ class MainActivity : Activity() {
                 renderSettingsPage()
                 dialog.dismiss()
             }
+            .show()
+    }
+
+    private fun showDrawerSurfaceModeEditor() {
+        val choices = arrayOf(
+            "Automatic · dark over wallpaper, matching Solid backgrounds",
+            "Dark · black search and filter surface",
+            "Transparent · show the background underneath",
+            "Wallpaper color · derive from the system wallpaper",
+            "Custom · use the selected backdrop color",
+        )
+        AlertDialog.Builder(this)
+            .setTitle("search backdrop")
+            .setSingleChoiceItems(choices, preferences.drawerSurfaceMode.ordinal) { dialog, which ->
+                preferences.drawerSurfaceMode = DrawerSurfaceMode.entries[which]
+                applyAppearance()
+                renderSettingsPage()
+                dialog.dismiss()
+            }
+            .show()
+    }
+
+    private fun showDrawerSurfaceColorEditor() {
+        val input = EditText(this).apply {
+            hint = "#RRGGBB"
+            setSingleLine(true)
+            setText(formatColor(preferences.drawerSurfaceColor))
+            setSelection(length())
+        }
+        AlertDialog.Builder(this)
+            .setTitle("search backdrop color")
+            .setView(input)
+            .setPositiveButton("save") { _, _ ->
+                val parsed = runCatching { Color.parseColor(input.text.toString().trim()) }.getOrNull()
+                if (parsed == null) {
+                    Toast.makeText(this, "Use a color such as #101416", Toast.LENGTH_SHORT).show()
+                } else {
+                    preferences.drawerSurfaceColor = parsed or 0xFF000000.toInt()
+                    applyAppearance()
+                    renderSettingsPage()
+                }
+            }
+            .setNegativeButton("cancel", null)
             .show()
     }
 
@@ -1825,6 +1911,24 @@ class MainActivity : Activity() {
                 }
             }
             .setNegativeButton("cancel", null)
+            .show()
+    }
+
+    private fun showTextTransformEditor() {
+        val choices = LauncherTextTransform.entries
+        AlertDialog.Builder(this)
+            .setTitle("text capitalization")
+            .setSingleChoiceItems(
+                choices.map { it.displayName }.toTypedArray(),
+                choices.indexOf(preferences.textTransform),
+            ) { dialog, which ->
+                val selectedTransform = choices[which]
+                dialog.dismiss()
+                if (selectedTransform != preferences.textTransform) {
+                    preferences.textTransform = selectedTransform
+                    recreate()
+                }
+            }
             .show()
     }
 
@@ -2464,6 +2568,12 @@ class MainActivity : Activity() {
 
     private fun scaledSp(base: Float): Float = base * preferences.fontScalePercent / 100f
 
+    private fun launcherText(value: String): String = TextTransformPolicy.apply(
+        value,
+        preferences.textTransform,
+        Locale.getDefault(),
+    )
+
     private fun withAlpha(color: Int, alpha: Int): Int = Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
 
     private fun formatColor(color: Int): String = String.format(Locale.ROOT, "#%06X", color and 0xFFFFFF)
@@ -2492,7 +2602,7 @@ class MainActivity : Activity() {
                 setBackgroundColor(Color.TRANSPARENT)
             }
             val app = getItem(position)
-            view.text = app.label.lowercase(Locale.getDefault())
+            view.text = launcherText(app.label)
             view.contentDescription = "Open ${app.label}${if (app.isWorkProfile) ", work profile" else ""}"
             return view
         }

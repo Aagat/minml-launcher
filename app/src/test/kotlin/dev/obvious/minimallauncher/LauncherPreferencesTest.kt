@@ -30,12 +30,15 @@ class LauncherPreferencesTest {
             setCustomMembership("custom:focus", listOf("b", "a"))
             fontScalePercent = 118
             launcherFont = LauncherFont.SYSTEM_MONO
+            textTransform = LauncherTextTransform.UPPERCASE
             animationsEnabled = false
             hiddenApps = setOf("profile:pkg/Hidden")
             appAliases = mapOf("profile:pkg/A" to "  Personal name  ")
             fontColor = 0xFF112233.toInt()
             accentColor = 0xFFABCDEF.toInt()
             solidBackgroundColor = 0xFF102030.toInt()
+            drawerSurfaceMode = DrawerSurfaceMode.CUSTOM
+            drawerSurfaceColor = 0xFF405060.toInt()
             showBuiltInClock = false
             autoShowKeyboard = false
             showFilterBar = false
@@ -62,12 +65,15 @@ class LauncherPreferencesTest {
         assertEquals(setOf("a", "b"), restored.customMembership("custom:focus"))
         assertEquals(118, restored.fontScalePercent)
         assertEquals(LauncherFont.SYSTEM_MONO, restored.launcherFont)
+        assertEquals(LauncherTextTransform.UPPERCASE, restored.textTransform)
         assertFalse(restored.animationsEnabled)
         assertEquals(setOf("profile:pkg/Hidden"), restored.hiddenApps)
         assertEquals(mapOf("profile:pkg/A" to "Personal name"), restored.appAliases)
         assertEquals(0xFF112233.toInt(), restored.fontColor)
         assertEquals(0xFFABCDEF.toInt(), restored.accentColor)
         assertEquals(0xFF102030.toInt(), restored.solidBackgroundColor)
+        assertEquals(DrawerSurfaceMode.CUSTOM, restored.drawerSurfaceMode)
+        assertEquals(0xFF405060.toInt(), restored.drawerSurfaceColor)
         assertFalse(restored.showBuiltInClock)
         assertFalse(restored.autoShowKeyboard)
         assertFalse(restored.showFilterBar)
@@ -103,12 +109,15 @@ class LauncherPreferencesTest {
         val preferences = LauncherPreferences(MapBackend())
         assertEquals(100, preferences.fontScalePercent)
         assertEquals(LauncherFont.GEIST_MONO, preferences.launcherFont)
+        assertEquals(LauncherTextTransform.LOWERCASE, preferences.textTransform)
         assertTrue(preferences.animationsEnabled)
         assertTrue(preferences.hiddenApps.isEmpty())
         assertTrue(preferences.appAliases.isEmpty())
         assertEquals(0xFFF4F4F2.toInt(), preferences.fontColor)
         assertEquals(0xFFB7F36B.toInt(), preferences.accentColor)
         assertEquals(0xFF000000.toInt(), preferences.solidBackgroundColor)
+        assertEquals(DrawerSurfaceMode.AUTOMATIC, preferences.drawerSurfaceMode)
+        assertEquals(0xFF101416.toInt(), preferences.drawerSurfaceColor)
         assertTrue(preferences.showBuiltInClock)
         assertTrue(preferences.autoShowKeyboard)
         assertTrue(preferences.showFilterBar)
@@ -133,6 +142,16 @@ class LauncherPreferencesTest {
     @Test fun `unknown font values fall back to Geist Mono`() {
         val backend = MapBackend().apply { putString("customization.launcher_font", "NOT_A_FONT") }
         assertEquals(LauncherFont.GEIST_MONO, LauncherPreferences(backend).launcherFont)
+    }
+
+    @Test fun `unknown presentation modes fall back safely`() {
+        val backend = MapBackend().apply {
+            putString("customization.text_transform", "NOT_A_TRANSFORM")
+            putString("customization.drawer_surface_mode", "NOT_A_SURFACE")
+        }
+        val preferences = LauncherPreferences(backend)
+        assertEquals(LauncherTextTransform.LOWERCASE, preferences.textTransform)
+        assertEquals(DrawerSurfaceMode.AUTOMATIC, preferences.drawerSurfaceMode)
     }
 
     @Test fun `every font choice persists by stable enum name`() {

@@ -127,6 +127,14 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
             .getOrDefault(LauncherFont.GEIST_MONO)
         set(value) = backend.putString(KEY_LAUNCHER_FONT, value.name)
 
+    var textTransform: LauncherTextTransform
+        get() = runCatching {
+            LauncherTextTransform.valueOf(
+                backend.getString(KEY_TEXT_TRANSFORM, LauncherTextTransform.LOWERCASE.name),
+            )
+        }.getOrDefault(LauncherTextTransform.LOWERCASE)
+        set(value) = backend.putString(KEY_TEXT_TRANSFORM, value.name)
+
     var animationsEnabled: Boolean
         get() = backend.getBoolean(KEY_ANIMATIONS_ENABLED, true)
         set(value) = backend.putBoolean(KEY_ANIMATIONS_ENABLED, value)
@@ -173,6 +181,18 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
     var solidBackgroundColor: Int
         get() = storedColor(KEY_SOLID_BACKGROUND_COLOR, DEFAULT_SOLID_BACKGROUND_COLOR)
         set(value) = backend.putString(KEY_SOLID_BACKGROUND_COLOR, encodeColor(value))
+
+    var drawerSurfaceMode: DrawerSurfaceMode
+        get() = runCatching {
+            DrawerSurfaceMode.valueOf(
+                backend.getString(KEY_DRAWER_SURFACE_MODE, DrawerSurfaceMode.AUTOMATIC.name),
+            )
+        }.getOrDefault(DrawerSurfaceMode.AUTOMATIC)
+        set(value) = backend.putString(KEY_DRAWER_SURFACE_MODE, value.name)
+
+    var drawerSurfaceColor: Int
+        get() = storedColor(KEY_DRAWER_SURFACE_COLOR, DEFAULT_DRAWER_SURFACE_COLOR)
+        set(value) = backend.putString(KEY_DRAWER_SURFACE_COLOR, encodeColor(value))
 
     var showBuiltInClock: Boolean
         get() = backend.getBoolean(KEY_SHOW_BUILT_IN_CLOCK, true)
@@ -261,12 +281,15 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
         const val KEY_CUSTOM_FILTERS = "filter.custom.categories"
         const val KEY_FONT_SCALE = "customization.font_scale"
         const val KEY_LAUNCHER_FONT = "customization.launcher_font"
+        const val KEY_TEXT_TRANSFORM = "customization.text_transform"
         const val KEY_ANIMATIONS_ENABLED = "customization.animations_enabled"
         const val KEY_HIDDEN_APPS = "apps.hidden"
         const val KEY_APP_ALIASES = "apps.aliases"
         const val KEY_FONT_COLOR = "customization.font_color"
         const val KEY_ACCENT_COLOR = "customization.accent_color"
         const val KEY_SOLID_BACKGROUND_COLOR = "customization.solid_background_color"
+        const val KEY_DRAWER_SURFACE_MODE = "customization.drawer_surface_mode"
+        const val KEY_DRAWER_SURFACE_COLOR = "customization.drawer_surface_color"
         const val KEY_SHOW_BUILT_IN_CLOCK = "customization.show_built_in_clock"
         const val KEY_AUTO_SHOW_KEYBOARD = "customization.auto_show_keyboard"
         const val KEY_SHOW_FILTER_BAR = "customization.show_filter_bar"
@@ -279,6 +302,7 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
         const val DEFAULT_FONT_COLOR = 0xFFF4F4F2.toInt()
         const val DEFAULT_ACCENT_COLOR = 0xFFB7F36B.toInt()
         const val DEFAULT_SOLID_BACKGROUND_COLOR = 0xFF000000.toInt()
+        const val DEFAULT_DRAWER_SURFACE_COLOR = 0xFF101416.toInt()
         const val DEFAULT_APP_LIST_TOP_MARGIN = 24
         const val DEFAULT_APP_LIST_RIGHT_MARGIN = 20
         const val DEFAULT_SEARCH_LEFT_MARGIN = 20

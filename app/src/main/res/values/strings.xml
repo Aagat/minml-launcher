@@ -3,9 +3,10 @@
     <string name="app_name">Minimal Launcher</string>
     <string name="open_apps">Open apps</string>
     <string name="search_apps">Search apps</string>
-    <string name="no_matching_apps">no matching apps</string>
-    <string name="weather_set_manual_location">weather · set manual location</string>
-    <string name="weather_loading">weather · loading</string>
+    <string name="no_matching_apps">No matching apps</string>
+    <string name="search_hint">Search</string>
+    <string name="weather_set_manual_location">Weather · set manual location</string>
+    <string name="weather_loading">Weather · loading</string>
     <string name="weather_manual_disclosure">Manual coordinates are sent to Open-Meteo. Location permission is not required.</string>
     <string name="weather_location_disclosure">Approximate device coordinates are requested only while weather is enabled and are sent to Open-Meteo. Manual coordinates remain an optional fallback.</string>
     <string name="weather_manual_location">Manual coordinates</string>
@@ -13,9 +14,9 @@
     <string name="weather_system_unit">System default (°%1$s)</string>
     <string name="weather_celsius_unit">Celsius (°C)</string>
     <string name="weather_fahrenheit_unit">Fahrenheit (°F)</string>
-    <string name="weather_location_permission_required">weather · approximate location permission required</string>
-    <string name="weather_location_denied">weather · location denied</string>
-    <string name="weather_location_unavailable">weather · location unavailable</string>
+    <string name="weather_location_permission_required">Weather · approximate location permission required</string>
+    <string name="weather_location_denied">Weather · location denied</string>
+    <string name="weather_location_unavailable">Weather · location unavailable</string>
     <string name="weather_summary">%1$d°%2$s  •  %3$s  ·  H%4$d  L%5$d%6$s</string>
     <string name="weather_stale_suffix">  stale</string>
     <string name="apps_list">Apps list</string>
@@ -26,7 +27,7 @@
     <string name="drawer_dismiss_distance_value">Distance sensitivity · %1$d%%</string>
     <string name="drawer_dismiss_speed_value">Speed sensitivity · %1$d%%</string>
     <string name="drawer_dismiss_sensitivity_guidance">Higher values make drawer-to-Home dismissal easier. Keyboard dismissal always matches the Home swipe-up gesture.</string>
-    <string name="not_default_home_switch">not default home · switch</string>
+    <string name="not_default_home_switch">Not default Home · switch</string>
     <string name="font_size_value">Font size · %1$d%%</string>
     <string name="app_list_top_margin_value">Top margin · %1$d dp</string>
     <string name="app_list_right_margin_value">Right margin · %1$d dp</string>

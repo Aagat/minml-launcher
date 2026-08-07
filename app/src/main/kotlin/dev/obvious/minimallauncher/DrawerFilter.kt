@@ -6,7 +6,7 @@ enum class DrawerFilter {
     WORK,
     MEDIA;
 
-    val displayName: String get() = name.lowercase()
+    val displayName: String get() = name.lowercase().replaceFirstChar { it.uppercase() }
 
     fun cycle(step: Int): DrawerFilter {
         val filters = entries
