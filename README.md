@@ -1,4 +1,6 @@
-# minml launcher
+<p align="center">
+  <img src="docs/assets/minml-readme-banner.png" alt="minml launcher" width="1200">
+</p>
 
 A native, text-first Android home screen built around typography, wallpaper,
 negative space, and fast access to apps. minml launcher replaces the usual icon
@@ -103,6 +105,13 @@ Bug reports and focused pull requests are welcome. Before submitting code, run
 the clean build command above and, when an emulator is available, the device
 test script. Please keep new behavior native, accessible, and compatible with
 API 29 unless a documented project decision changes the minimum SDK.
+
+## Artwork
+
+Editable brand artwork and the 512 px store-listing icon are kept in
+[`artwork/`](artwork/). Android-ready adaptive, monochrome, round, and legacy
+launcher icons live alongside the app's other resources in
+`app/src/main/res/`.
 
 ## License
 
