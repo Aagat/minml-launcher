@@ -1594,7 +1594,7 @@ class MainActivity : Activity() {
             isChecked = preferences.weatherEnabled
         }
         val unitLabel = styledText(11f, secondaryColor, mediumTypeface).apply {
-            text = "temperature unit"
+            text = getString(R.string.weather_temperature_unit)
             setPadding(0, dp(8), 0, 0)
         }
         val temperatureUnit = RadioGroup(this).apply { orientation = RadioGroup.VERTICAL }
@@ -1603,15 +1603,15 @@ class MainActivity : Activity() {
         )
         val systemUnit = RadioButton(this).apply {
             id = View.generateViewId()
-            text = "System default (°$systemUnitSymbol)"
+            text = getString(R.string.weather_system_unit, systemUnitSymbol)
         }
         val celsiusUnit = RadioButton(this).apply {
             id = View.generateViewId()
-            text = "Celsius (°C)"
+            text = getString(R.string.weather_celsius_unit)
         }
         val fahrenheitUnit = RadioButton(this).apply {
             id = View.generateViewId()
-            text = "Fahrenheit (°F)"
+            text = getString(R.string.weather_fahrenheit_unit)
         }
         temperatureUnit.addView(systemUnit)
         temperatureUnit.addView(celsiusUnit)

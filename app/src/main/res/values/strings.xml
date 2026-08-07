@@ -11,6 +11,10 @@
     <string name="weather_location_disclosure">Approximate device coordinates are requested only while weather is enabled and are sent to Open-Meteo. Manual coordinates remain an optional fallback.</string>
     <string name="weather_manual_location">Manual coordinates</string>
     <string name="weather_approximate_location">Approximate device location</string>
+    <string name="weather_temperature_unit">temperature unit</string>
+    <string name="weather_system_unit">System default (°%1$s)</string>
+    <string name="weather_celsius_unit">Celsius (°C)</string>
+    <string name="weather_fahrenheit_unit">Fahrenheit (°F)</string>
     <string name="weather_location_permission_required">weather · approximate location permission required</string>
     <string name="weather_location_denied">weather · location denied</string>
     <string name="weather_location_unavailable">weather · location unavailable</string>
@@ -25,7 +29,6 @@
     <string name="drawer_dismiss_speed_value">Speed sensitivity · %1$d%%</string>
     <string name="drawer_dismiss_sensitivity_guidance">Higher values make drawer-to-Home dismissal easier. Keyboard dismissal always matches the Home swipe-up gesture.</string>
     <string name="not_default_home_switch">not default home · switch</string>
-    <string name="drawer_filter_count">%1$s/%2$d</string>
     <string name="font_size_value">Font size · %1$d%%</string>
     <string name="app_list_top_margin_value">Top margin · %1$d dp</string>
     <string name="app_list_right_margin_value">Right margin · %1$d dp</string>
