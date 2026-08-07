@@ -61,6 +61,8 @@ class MainActivity : Activity() {
     private lateinit var drawerHeader: TextView
     private lateinit var appList: ListView
     private lateinit var emptyState: TextView
+    private lateinit var drawerFade: View
+    private lateinit var drawerBottomSurface: View
     private lateinit var filtersView: LinearLayout
     private lateinit var searchInput: EditText
     private lateinit var scrollTrack: View
@@ -281,6 +283,7 @@ class MainActivity : Activity() {
     private fun buildDrawer() {
         drawer = FilterGestureLayout(this).apply {
             setBackgroundColor(Color.TRANSPARENT)
+            clipToPadding = false
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
             contentDescription = "App drawer"
             onFilterSwipe = { cycleFilter(it) }
@@ -318,14 +321,20 @@ class MainActivity : Activity() {
         drawer.addView(emptyState, FrameLayout.LayoutParams(dp(300), dp(120)).apply { gravity = Gravity.END })
         appList.emptyView = emptyState
 
-        val fade = View(this).apply {
+        drawerBottomSurface = View(this).apply {
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            setBackgroundColor(Color.BLACK)
+        }
+        drawer.addView(drawerBottomSurface, FrameLayout.LayoutParams(MATCH, dp(102)).apply { gravity = Gravity.BOTTOM })
+
+        drawerFade = View(this).apply {
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
             background = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(Color.TRANSPARENT, 0x55000000, 0xE6000000.toInt(), Color.BLACK),
+                intArrayOf(Color.TRANSPARENT, 0x33000000, 0xB3000000.toInt(), Color.BLACK),
             )
         }
-        drawer.addView(fade, FrameLayout.LayoutParams(MATCH, dp(270)).apply { gravity = Gravity.BOTTOM })
+        drawer.addView(drawerFade, FrameLayout.LayoutParams(MATCH, dp(56)).apply { gravity = Gravity.BOTTOM })
 
         drawerHeader = styledText(8f, PRIMARY, mediumTypeface).apply {
             gravity = Gravity.END
@@ -435,6 +444,16 @@ class MainActivity : Activity() {
             gravity = Gravity.END or Gravity.TOP
             topMargin = max(0, listTop - dp(26))
             rightMargin = right + dp(14)
+        }
+        drawerBottomSurface.layoutParams = (drawerBottomSurface.layoutParams as FrameLayout.LayoutParams).apply {
+            height = controlsHeight + drawer.paddingBottom
+            gravity = Gravity.BOTTOM
+            bottomMargin = -drawer.paddingBottom
+        }
+        drawerFade.layoutParams = (drawerFade.layoutParams as FrameLayout.LayoutParams).apply {
+            height = dp(56)
+            gravity = Gravity.BOTTOM
+            bottomMargin = controlsHeight
         }
         filtersView.layoutParams = (filtersView.layoutParams as FrameLayout.LayoutParams).apply {
             width = columnWidth

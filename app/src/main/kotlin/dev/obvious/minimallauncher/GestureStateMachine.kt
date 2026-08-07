@@ -44,3 +44,27 @@ class GestureStateMachine(
         decision = GestureDecision.UNDECIDED
     }
 }
+
+object DrawerGesturePolicy {
+    fun filterStep(
+        dx: Float,
+        dy: Float,
+        minimumDistance: Float,
+        dominance: Float = 1.35f,
+    ): Int? {
+        if (abs(dx) < minimumDistance || abs(dx) <= abs(dy) * dominance) return null
+        return if (dx < 0f) 1 else -1
+    }
+
+    fun isDismissGesture(
+        dx: Float,
+        dy: Float,
+        durationMillis: Long,
+        minimumDistance: Float,
+        minimumVelocity: Float,
+        dominance: Float = 1.35f,
+    ): Boolean {
+        if (durationMillis <= 0L || dy < minimumDistance || dy <= abs(dx) * dominance) return false
+        return dy * 1_000f / durationMillis >= minimumVelocity
+    }
+}

@@ -17,35 +17,37 @@ class FilterGestureLayout @JvmOverloads constructor(
     var onFilterSwipe: ((Int) -> Unit)? = null
     var onSwipeDown: (() -> Unit)? = null
     var canSwipeDown: (() -> Boolean)? = null
-    private val gesture = GestureStateMachine(ViewConfiguration.get(context).scaledTouchSlop.toFloat())
-    private val swipeDownThreshold = max(
-        ViewConfiguration.get(context).scaledTouchSlop * 4f,
-        resources.displayMetrics.density * 48f,
-    )
+    private val density = resources.displayMetrics.density
+    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop.toFloat()
+    private val gesture = GestureStateMachine(max(touchSlop * 3f, density * 24f), dominance = 1.25f)
+    private val filterSwipeDistance = max(touchSlop * 6f, density * 72f)
+    private val dismissDistance = max(touchSlop * 10f, density * 144f)
+    private val dismissVelocity = density * 850f
+    private var downX = 0f
     private var downY = 0f
-    private var handled = false
+    private var downTime = 0L
     private var swipeDownEligible = false
 
     override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 gesture.begin(event.x, event.y)
+                downX = event.x
                 downY = event.y
-                handled = false
+                downTime = event.eventTime
                 swipeDownEligible = canSwipeDown?.invoke() != false
             }
             MotionEvent.ACTION_MOVE -> {
-                val decision = gesture.update(event.x, event.y)
-                if (decision == GestureDecision.HORIZONTAL_LEFT || decision == GestureDecision.HORIZONTAL_RIGHT) {
-                    parent?.requestDisallowInterceptTouchEvent(true)
-                    return true
-                }
-                if (
-                    decision == GestureDecision.VERTICAL_DOWN &&
-                    swipeDownEligible
-                ) {
-                    parent?.requestDisallowInterceptTouchEvent(true)
-                    return true
+                when (gesture.update(event.x, event.y)) {
+                    GestureDecision.HORIZONTAL_LEFT, GestureDecision.HORIZONTAL_RIGHT -> {
+                        parent?.requestDisallowInterceptTouchEvent(true)
+                        return true
+                    }
+                    GestureDecision.VERTICAL_DOWN -> if (swipeDownEligible) {
+                        parent?.requestDisallowInterceptTouchEvent(true)
+                        return true
+                    }
+                    else -> Unit
                 }
             }
             MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_UP -> gesture.reset()
@@ -55,33 +57,25 @@ class FilterGestureLayout @JvmOverloads constructor(
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
-            MotionEvent.ACTION_MOVE -> {
-                val decision = gesture.update(event.x, event.y)
-                if (!handled && decision == GestureDecision.HORIZONTAL_LEFT) {
-                    handled = true
-                    onFilterSwipe?.invoke(1)
-                } else if (!handled && decision == GestureDecision.HORIZONTAL_RIGHT) {
-                    handled = true
-                    onFilterSwipe?.invoke(-1)
-                } else if (
-                    !handled &&
-                    decision == GestureDecision.VERTICAL_DOWN &&
-                    event.y - downY >= swipeDownThreshold &&
-                    swipeDownEligible
-                ) {
-                    handled = true
-                    onSwipeDown?.invoke()
-                }
-            }
+            MotionEvent.ACTION_MOVE -> gesture.update(event.x, event.y)
             MotionEvent.ACTION_UP -> {
-                if (!handled) performClick()
+                val dx = event.x - downX
+                val dy = event.y - downY
+                val filterStep = DrawerGesturePolicy.filterStep(dx, dy, filterSwipeDistance)
+                when {
+                    filterStep != null -> onFilterSwipe?.invoke(filterStep)
+                    swipeDownEligible && DrawerGesturePolicy.isDismissGesture(
+                        dx = dx,
+                        dy = dy,
+                        durationMillis = event.eventTime - downTime,
+                        minimumDistance = dismissDistance,
+                        minimumVelocity = dismissVelocity,
+                    ) -> onSwipeDown?.invoke()
+                    else -> performClick()
+                }
                 gesture.reset()
-                handled = false
             }
-            MotionEvent.ACTION_CANCEL -> {
-                gesture.reset()
-                handled = false
-            }
+            MotionEvent.ACTION_CANCEL -> gesture.reset()
         }
         return true
     }
