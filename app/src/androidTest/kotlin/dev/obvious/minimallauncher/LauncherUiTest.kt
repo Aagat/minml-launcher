@@ -28,6 +28,7 @@ import org.junit.Test
 import org.junit.rules.TestName
 import org.junit.runner.RunWith
 import java.util.regex.Pattern
+import kotlin.math.abs
 
 @RunWith(AndroidJUnit4::class)
 class LauncherUiTest {
@@ -44,6 +45,7 @@ class LauncherUiTest {
         device.executeShellCommand("cmd role add-role-holder android.app.role.HOME $PACKAGE_NAME")
         device.executeShellCommand("appops set $PACKAGE_NAME GET_USAGE_STATS default")
         context.getSharedPreferences(USER_PREFERENCES, 0).edit().clear().commit()
+        context.getSharedPreferences(RUNTIME_PREFERENCES, 0).edit().clear().commit()
         LauncherPreferences(SharedPreferenceBackend(context.getSharedPreferences(USER_PREFERENCES, 0))).apply {
             animationsEnabled = false
             autoShowKeyboard = false
@@ -215,10 +217,34 @@ class LauncherUiTest {
         val center = widget.visibleCenter
         device.swipe(center.x, center.y, center.x, center.y, 160)
         waitForResource("widget_editor_done")
-        assertNotNull(device.findObject(By.res(PACKAGE_NAME, "widget_editor_resize")))
+        val originalBounds = waitForResource("home_screen_time").visibleBounds
+        waitForResource("widget_editor_resize").visibleCenter.let { handle ->
+            device.swipe(handle.x, handle.y, handle.x - 180, handle.y + 40, 24)
+        }
+        val resizedBounds = waitForResource("home_screen_time").visibleBounds
+        assertTrue(resizedBounds.width() < originalBounds.width() - 100)
+        waitForResource("widget_editor_move").visibleCenter.let { surface ->
+            device.swipe(surface.x, surface.y, surface.x + 100, surface.y + 100, 24)
+        }
+        val arrangedBounds = waitForResource("home_screen_time").visibleBounds
+        assertTrue(arrangedBounds.left > originalBounds.left + 50)
+        assertTrue(arrangedBounds.top > originalBounds.top + 50)
+        waitForResource("widget_editor_done").click()
+        assertTrue(eventually { device.findObject(By.res(PACKAGE_NAME, "widget_editor_done")) == null })
+
+        scenario.recreate()
+        waitForPackage()
+        val restoredBounds = waitForResource("home_screen_time").visibleBounds
+        assertTrue(abs(restoredBounds.left - arrangedBounds.left) <= 4)
+        assertTrue(abs(restoredBounds.top - arrangedBounds.top) <= 4)
+        assertTrue(abs(restoredBounds.width() - arrangedBounds.width()) <= 4)
+
+        val restoredCenter = waitForResource("home_screen_time").visibleCenter
+        device.swipe(restoredCenter.x, restoredCenter.y, restoredCenter.x, restoredCenter.y, 160)
+        waitForResource("widget_editor_done")
         waitForResource("widget_editor_remove").click()
         waitForText("remove built-in screen time?")
-        waitForText("remove").click()
+        waitForAndroidResource("button1").click()
         assertTrue(eventually { device.findObject(By.res(PACKAGE_NAME, "home_screen_time")) == null })
         waitForDescription("Minimal Launcher Home")
         scenario.onActivity { activity -> assertFalse(preferences(activity).showScreenTime) }
@@ -311,6 +337,10 @@ class LauncherUiTest {
         device.wait(Until.findObject(By.res(PACKAGE_NAME, name)), TIMEOUT_MS)
             ?: throw AssertionError("Timed out waiting for resource: $name")
 
+    private fun waitForAndroidResource(name: String): UiObject2 =
+        device.wait(Until.findObject(By.res("android", name)), TIMEOUT_MS)
+            ?: throw AssertionError("Timed out waiting for Android resource: $name")
+
     private fun waitForClass(name: String): UiObject2 =
         device.wait(Until.findObject(By.clazz(name)), TIMEOUT_MS)
             ?: throw AssertionError("Timed out waiting for class: $name")
@@ -328,6 +358,7 @@ class LauncherUiTest {
         const val PACKAGE_NAME = "dev.obvious.minimallauncher"
         const val ARTIFACTS_DIRECTORY = "/sdcard/Download/minimal-launcher-ui-test-artifacts"
         const val USER_PREFERENCES = "launcher_prefs"
+        const val RUNTIME_PREFERENCES = "launcher_runtime"
         const val TIMEOUT_MS = 10_000L
     }
 }
