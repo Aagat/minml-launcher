@@ -6,6 +6,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
 import java.util.concurrent.Executors
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 data class WeatherSnapshot(
@@ -34,13 +35,24 @@ object WeatherCachePolicy {
             else -> WeatherCacheState.EXPIRED
         }
     }
+
+    fun matchesLocation(
+        cachedLatitude: Double?,
+        cachedLongitude: Double?,
+        requestedLatitude: Double,
+        requestedLongitude: Double,
+    ): Boolean = cachedLatitude != null && cachedLongitude != null &&
+        abs(cachedLatitude - requestedLatitude) <= LOCATION_TOLERANCE_DEGREES &&
+        abs(cachedLongitude - requestedLongitude) <= LOCATION_TOLERANCE_DEGREES
+
+    private const val LOCATION_TOLERANCE_DEGREES = 0.1
 }
 
 class WeatherRepository(private val runtime: SharedPreferences) {
     private val executor = Executors.newSingleThreadExecutor()
 
     fun load(latitude: Double, longitude: Double, callback: (WeatherResult) -> Unit) {
-        val cached = readCache()
+        val cached = readCache(latitude, longitude)
         val now = System.currentTimeMillis()
         val cacheState = WeatherCachePolicy.state(cached?.fetchedAt, now)
         if (cached != null && cacheState == WeatherCacheState.FRESH) {
@@ -53,7 +65,7 @@ class WeatherRepository(private val runtime: SharedPreferences) {
         executor.execute {
             val fetched = runCatching { fetch(latitude, longitude) }
             fetched.onSuccess { snapshot ->
-                writeCache(snapshot)
+                writeCache(snapshot, latitude, longitude)
                 callback(WeatherResult.Available(snapshot, false))
             }.onFailure {
                 if (cached == null || cacheState == WeatherCacheState.EXPIRED) {
@@ -96,7 +108,7 @@ class WeatherRepository(private val runtime: SharedPreferences) {
         }
     }
 
-    private fun writeCache(snapshot: WeatherSnapshot) {
+    private fun writeCache(snapshot: WeatherSnapshot, latitude: Double, longitude: Double) {
         runtime.edit()
             .putInt("weather.temperature", snapshot.temperature)
             .putInt("weather.high", snapshot.high)
@@ -104,12 +116,21 @@ class WeatherRepository(private val runtime: SharedPreferences) {
             .putString("weather.condition", snapshot.condition)
             .putString("weather.unit", snapshot.unit)
             .putLong("weather.fetchedAt", snapshot.fetchedAt)
+            .putString("weather.latitude", latitude.toString())
+            .putString("weather.longitude", longitude.toString())
             .apply()
     }
 
-    private fun readCache(): WeatherSnapshot? {
+    private fun readCache(latitude: Double, longitude: Double): WeatherSnapshot? {
         val fetchedAt = runtime.getLong("weather.fetchedAt", 0L)
         if (fetchedAt == 0L) return null
+        if (!WeatherCachePolicy.matchesLocation(
+                runtime.getString("weather.latitude", null)?.toDoubleOrNull(),
+                runtime.getString("weather.longitude", null)?.toDoubleOrNull(),
+                latitude,
+                longitude,
+            )
+        ) return null
         return WeatherSnapshot(
             temperature = runtime.getInt("weather.temperature", 0),
             high = runtime.getInt("weather.high", 0),

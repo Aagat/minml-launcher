@@ -17,4 +17,10 @@ class WeatherCachePolicyTest {
     @Test fun `future timestamps remain fresh after clock correction`() {
         assertEquals(WeatherCacheState.FRESH, WeatherCachePolicy.state(now + 1_000L, now))
     }
+
+    @Test fun `weather cache is reused only near its source coordinates`() {
+        assertEquals(true, WeatherCachePolicy.matchesLocation(41.38, 2.17, 41.40, 2.20))
+        assertEquals(false, WeatherCachePolicy.matchesLocation(41.38, 2.17, 40.42, -3.70))
+        assertEquals(false, WeatherCachePolicy.matchesLocation(null, null, 41.40, 2.20))
+    }
 }
