@@ -72,6 +72,11 @@ The emulator process crashed during injected drawer/keyboard input when using
   approximate device location, with manual fallback and a six-hour stale cache.
 - Auto appearance reacts to Android wallpaper colors while preserving a
   localized clock contrast surface on mixed-brightness wallpaper.
+- Choose Solid under Customization to replace the wallpaper with a saved opaque
+  color; editing the solid background color selects that appearance directly.
+- Long-press an Android widget and choose **remove**. Long-press the built-in
+  clock/date and choose **hide**; restore it with **Customization → built-in
+  clock/date**.
 - Long-press empty Home space to add custom filters and configure favorites,
   font size/color, accent color, automatic keyboard display, filter-label/fade/
   underline visibility, list margins, status bar, appearance, optional weather,
