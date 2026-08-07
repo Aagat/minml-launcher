@@ -189,6 +189,33 @@ class LauncherUiTest {
         waitForResource("drawer_search")
     }
 
+    @Test fun builtInClockCanBeArrangedAndRestored() {
+        val clock = waitForResource("home_clock")
+        val originalBounds = clock.visibleBounds
+        clock.visibleCenter.let { center -> device.swipe(center.x, center.y, center.x, center.y, 160) }
+        waitForResource("widget_editor_done")
+
+        waitForResource("widget_editor_resize").visibleCenter.let { handle ->
+            device.swipe(handle.x, handle.y, handle.x - 180, handle.y + 40, 24)
+        }
+        waitForResource("widget_editor_move").visibleCenter.let { surface ->
+            device.swipe(surface.x, surface.y, surface.x + 100, surface.y + 100, 24)
+        }
+        val arrangedBounds = waitForResource("home_clock").visibleBounds
+        assertTrue(arrangedBounds.width() < originalBounds.width() - 100)
+        assertTrue(arrangedBounds.left > originalBounds.left + 50)
+        assertTrue(arrangedBounds.top > originalBounds.top + 50)
+        waitForResource("widget_editor_done").click()
+
+        scenario.recreate()
+        waitForPackage()
+        val restoredBounds = waitForResource("home_clock").visibleBounds
+        assertTrue(abs(restoredBounds.left - arrangedBounds.left) <= 4)
+        assertTrue(abs(restoredBounds.top - arrangedBounds.top) <= 4)
+        assertTrue(abs(restoredBounds.width() - arrangedBounds.width()) <= 4)
+        assertTrue(abs(restoredBounds.height() - arrangedBounds.height()) <= 4)
+    }
+
     @Test fun screenTimeWidgetCanBeEnabledAndHidden() {
         openSettingsCategory("Home screen")
         waitForText("Show screen time").click()

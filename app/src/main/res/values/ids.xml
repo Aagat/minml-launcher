@@ -2,6 +2,7 @@
 <resources>
     <item name="launcher_root" type="id" />
     <item name="launcher_home" type="id" />
+    <item name="home_clock" type="id" />
     <item name="home_screen_time" type="id" />
     <item name="home_detailed_usage" type="id" />
     <item name="widget_editor_move" type="id" />

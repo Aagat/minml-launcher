@@ -71,6 +71,7 @@ class MainActivity : Activity() {
     private lateinit var homeRolePrompt: Button
     private lateinit var favoritesView: LinearLayout
     private lateinit var widgetContainer: FrameLayout
+    private var clockWidgetEditor: EditableWidgetFrame? = null
     private var activeWidgetEditor: EditableWidgetFrame? = null
     private val widgetEditors = mutableListOf<EditableWidgetFrame>()
     private val widgetEditorGeometries = mutableMapOf<EditableWidgetFrame, WidgetGeometry>()
@@ -405,7 +406,7 @@ class MainActivity : Activity() {
             showFavoriteEditor()
         }
         addSettingsRow(body, "Add widget", "Open Android's widget picker", "system") { pickWidget() }
-        if (preferences.showScreenTime || loadWidgetPlacements().isNotEmpty()) {
+        if (preferences.showBuiltInClock || preferences.showScreenTime || loadWidgetPlacements().isNotEmpty()) {
             addSettingsRow(
                 body,
                 "Arrange widgets",
@@ -420,6 +421,7 @@ class MainActivity : Activity() {
         addSettingsSection(body, "clock and date")
         addSettingsRow(body, "Show clock/date", "Built-in launcher clock treatment", onOff(preferences.showBuiltInClock)) {
             preferences.showBuiltInClock = !preferences.showBuiltInClock
+            renderWidgets()
             applyAppearance()
             renderSettingsPage()
         }
@@ -843,13 +845,14 @@ class MainActivity : Activity() {
         }
 
         clockPanel = LinearLayout(this).apply {
+            id = R.id.home_clock
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.START
             setPadding(dp(16), dp(10), dp(16), dp(12))
-            contentDescription = "Built-in clock and date. Long press to hide."
+            contentDescription = "Built-in clock and date. Long press to move or resize."
             isLongClickable = true
             setOnLongClickListener {
-                showBuiltInClockActions()
+                clockWidgetEditor?.let(::enterWidgetEditMode)
                 true
             }
         }
@@ -869,11 +872,6 @@ class MainActivity : Activity() {
         clockPanel.addView(timeView, LinearLayout.LayoutParams(WRAP, WRAP))
         clockPanel.addView(dateView, LinearLayout.LayoutParams(WRAP, WRAP))
         clockPanel.addView(weatherView, LinearLayout.LayoutParams(WRAP, WRAP))
-        home.addView(clockPanel, FrameLayout.LayoutParams(MATCH, WRAP).apply {
-            gravity = Gravity.TOP
-            setMargins(dp(20), dp(14), dp(12), 0)
-        })
-
         homeRolePrompt = Button(this).apply {
             text = launcherText(getString(R.string.not_default_home_switch))
             contentDescription = "Minimal Launcher is not the default Home app. Switch Home app."
@@ -1589,7 +1587,6 @@ class MainActivity : Activity() {
     private fun adaptHomeForWindow() {
         if (!::timeView.isInitialized || root.width == 0 || root.height == 0) return
         val landscape = root.width > root.height
-        timeView.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, scaledSp(if (landscape) 44f else 64f))
         (favoritesView.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
             params.bottomMargin = dp(if (landscape) 12 else 92)
             favoritesView.layoutParams = params
@@ -1842,18 +1839,6 @@ class MainActivity : Activity() {
             withAlpha(surfaceColor, 0xB3),
             surfaceColor,
         )
-    }
-
-    private fun showBuiltInClockActions() {
-        AlertDialog.Builder(this)
-            .setTitle("built-in clock/date")
-            .setItems(arrayOf("hide")) { _, _ ->
-                preferences.showBuiltInClock = false
-                applyAppearance()
-                Toast.makeText(this, "Clock/date hidden. Restore it in Customization.", Toast.LENGTH_LONG).show()
-            }
-            .setNegativeButton("cancel", null)
-            .show()
     }
 
     private fun openUsageAccessSettings() {
@@ -2697,15 +2682,47 @@ class MainActivity : Activity() {
         screenTimeRequestGeneration += 1
         screenTimeRequestInFlight = false
         activeWidgetEditor = null
+        clockWidgetEditor = null
+        (clockPanel.parent as? ViewGroup)?.removeView(clockPanel)
         widgetContainer.removeAllViews()
         widgetEditors.clear()
         widgetEditorGeometries.clear()
         widgetEditorAutomaticTops.clear()
         screenTimeView = null
         screenUsageView = null
-        var automaticTopDp = if (!preferences.showBuiltInClock) 8 else if (
-            resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-        ) 124 else 190
+        var automaticTopDp = 0
+        if (preferences.showBuiltInClock) {
+            val clockGeometry = loadBuiltInWidgetGeometry(
+                CLOCK_GEOMETRY_KEY,
+                WidgetGeometry(150, yPermille = 0),
+            )
+            val clockFrame = createWidgetEditorFrame().apply {
+                minimumEditorWidthPx = dp(180)
+                minimumEditorHeightPx = dp(100)
+            }
+            clockWidgetEditor = clockFrame
+            clockPanel.visibility = View.VISIBLE
+            clockFrame.onGeometryCommitted = { geometry ->
+                widgetEditorGeometries[clockFrame] = geometry
+                saveBuiltInWidgetGeometry(CLOCK_GEOMETRY_KEY, geometry)
+                updateClockTypography(geometry.heightDp)
+            }
+            clockFrame.onRemoveRequested = {
+                confirmWidgetRemoval("built-in clock/date") {
+                    preferences.showBuiltInClock = false
+                    renderWidgets()
+                    applyAppearance()
+                    Toast.makeText(this, "Clock/date hidden. Restore it in Home screen settings.", Toast.LENGTH_LONG).show()
+                }
+            }
+            clockFrame.setOnLongClickListener {
+                enterWidgetEditMode(clockFrame)
+                true
+            }
+            clockFrame.addView(clockPanel, 0, FrameLayout.LayoutParams(MATCH, MATCH))
+            addWidgetEditor(clockFrame, clockGeometry, automaticTopDp)
+            automaticTopDp += clockGeometry.heightDp + 8
+        }
         if (preferences.showScreenTime) {
             val screenTimeBlock = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -2840,7 +2857,13 @@ class MainActivity : Activity() {
         widgetEditors.forEach { frame ->
             val geometry = widgetEditorGeometries[frame] ?: return@forEach
             frame.applyGeometry(geometry, widgetEditorAutomaticTops[frame] ?: 0)
+            if (frame === clockWidgetEditor) updateClockTypography(frame.currentGeometry().heightDp)
         }
+    }
+
+    private fun updateClockTypography(heightDp: Int) {
+        val timeSize = (heightDp * 0.43f).coerceIn(40f, 84f)
+        timeView.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, scaledSp(timeSize))
     }
 
     private fun enterWidgetEditMode(frame: EditableWidgetFrame) {
@@ -2947,6 +2970,7 @@ class MainActivity : Activity() {
         const val STATE_QUERY = "drawer.query"
         const val STATE_SETTINGS_PAGE = "settings.page"
         const val CATALOG_CACHE_KEY = "catalog.entries"
+        const val CLOCK_GEOMETRY_KEY = "widget.builtin.clock.geometry"
         const val SCREEN_TIME_GEOMETRY_KEY = "widget.builtin.screen_time.geometry"
         const val WIDGET_EDITOR_HINT_SHOWN_KEY = "widget.editor.hint_shown"
         const val IME_SHOW_DELAY_MS = 120L
