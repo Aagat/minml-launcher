@@ -58,8 +58,11 @@ The emulator process crashed during injected drawer/keyboard input when using
 - Tap filter labels or swipe horizontally over the drawer (including app rows)
   to cycle all/daily/work/media. Vertical gestures continue to scroll the list.
 - Make a deliberate downward swipe from the top of the app list. The first
-  swipe hides the keyboard; the next returns Home. Its sensitivity is adjustable
-  in launcher settings.
+  swipe hides the keyboard using the same sensitivity as Home’s opening swipe;
+  the next returns Home. Drawer-to-Home distance and speed are independently
+  adjustable in launcher settings.
+- Personal apps appear in All/Daily/Media. Apps from a secondary/work profile
+  appear exclusively in Work and use an `(w)` suffix in settings lists.
 - Type with the system keyboard; Enter/Go launches the first ranked result.
 - Back dismisses the IME first, then closes the drawer.
 - Long-press empty Home space to configure favorites, filters, appearance,
