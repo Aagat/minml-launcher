@@ -423,12 +423,36 @@ class MainActivity : Activity() {
         }
         if (preferences.showScreenTime) {
             val usageAccessGranted = screenTimeRepository.hasUsageAccess()
-            addSettingsRow(
-                body,
-                "Usage access",
-                "Android usage events are read only to total today's screen-on time",
-                if (usageAccessGranted) "allowed" else "allow",
-            ) { openUsageAccessSettings() }
+            if (usageAccessGranted) {
+                addSettingsRow(
+                    body,
+                    "Usage access",
+                    "Android usage events are read only to total today's screen-on time",
+                    "allowed",
+                ) { openUsageAccessSettings() }
+            } else {
+                body.addView(settingsText(
+                    "Android requires special Usage Access. If Android blocks the switch because this APK was installed from a file, complete both steps below.",
+                    10f,
+                    SETTINGS_SECONDARY_COLOR,
+                    regularTypeface,
+                ).apply {
+                    setPadding(dp(12), dp(4), dp(12), dp(8))
+                    setLineSpacing(0f, 1.15f)
+                })
+                addSettingsRow(
+                    body,
+                    "1. Allow restricted settings",
+                    "Open App info, tap the top-right menu, then Allow restricted settings",
+                    "app info",
+                ) { openAppDetails() }
+                addSettingsRow(
+                    body,
+                    "2. Permit usage access",
+                    "Open Android Usage Access, select Minimal Launcher, and enable the switch",
+                    "usage access",
+                ) { openUsageAccessSettings() }
+            }
         }
 
         addSettingsSection(body, "weather")
@@ -1629,10 +1653,10 @@ class MainActivity : Activity() {
             }
             ScreenTimeResult.PermissionRequired -> {
                 view.text = launcherText(getString(R.string.screen_time_permission_required))
-                view.contentDescription = "Allow usage access to show screen-on time. Long press to hide."
+                view.contentDescription = "Open setup instructions to allow screen-on time access. Long press to hide."
                 view.isClickable = true
                 view.isFocusable = true
-                view.setOnClickListener { openUsageAccessSettings() }
+                view.setOnClickListener { showSettings(SettingsPage.HOME) }
             }
             ScreenTimeResult.Unavailable -> {
                 view.text = launcherText(getString(R.string.screen_time_unavailable))

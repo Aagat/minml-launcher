@@ -42,6 +42,7 @@ class LauncherUiTest {
         device = UiDevice.getInstance(instrumentation)
         device.setOrientationNatural()
         device.executeShellCommand("cmd role add-role-holder android.app.role.HOME $PACKAGE_NAME")
+        device.executeShellCommand("appops set $PACKAGE_NAME GET_USAGE_STATS default")
         context.getSharedPreferences(USER_PREFERENCES, 0).edit().clear().commit()
         LauncherPreferences(SharedPreferenceBackend(context.getSharedPreferences(USER_PREFERENCES, 0))).apply {
             animationsEnabled = false
@@ -187,12 +188,20 @@ class LauncherUiTest {
     }
 
     @Test fun screenTimeWidgetCanBeEnabledAndHidden() {
-        device.executeShellCommand("appops set $PACKAGE_NAME GET_USAGE_STATS allow")
         openSettingsCategory("Home screen")
         waitForText("Show screen time").click()
-        waitForDescriptionContains("Usage access")
+        waitForText("1. Allow restricted settings")
+        waitForText("2. Permit usage access")
         closeSettingsCategoryAndRoot()
 
+        waitForResource("home_screen_time").click()
+        waitForText("1. Allow restricted settings")
+        waitForText("2. Permit usage access")
+        closeSettingsCategoryAndRoot()
+
+        device.executeShellCommand("appops set $PACKAGE_NAME GET_USAGE_STATS allow")
+        scenario.recreate()
+        waitForPackage()
         val widget = waitForResource("home_screen_time")
         assertTrue(eventually { widget.text?.toString()?.startsWith("screen on ·") == true })
         assertTrue(widget.contentDescription.toString().startsWith("Screen on today,"))
