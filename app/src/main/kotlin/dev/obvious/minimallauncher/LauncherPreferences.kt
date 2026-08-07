@@ -124,6 +124,37 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
         get() = backend.getBoolean(KEY_ANIMATIONS_ENABLED, true)
         set(value) = backend.putBoolean(KEY_ANIMATIONS_ENABLED, value)
 
+    var hiddenApps: Set<String>
+        get() = PreferenceCodec.decode(backend.getString(KEY_HIDDEN_APPS)).filter { it.isNotBlank() }.toSet()
+        set(value) = backend.putString(KEY_HIDDEN_APPS, PreferenceCodec.encode(value.filter { it.isNotBlank() }.distinct().sorted()))
+
+    var appAliases: Map<String, String>
+        get() = PreferenceCodec.decode(backend.getString(KEY_APP_ALIASES)).mapNotNull { encoded ->
+            val values = PreferenceCodec.decode(encoded)
+            val id = values.getOrNull(0).orEmpty()
+            val alias = values.getOrNull(1).orEmpty().trim()
+            if (values.size == 2 && id.isNotBlank() && alias.isNotBlank()) id to alias else null
+        }.toMap()
+        set(value) = backend.putString(
+            KEY_APP_ALIASES,
+            PreferenceCodec.encode(value.entries
+                .map { it.key to it.value.trim().take(MAX_APP_ALIAS_LENGTH) }
+                .filter { it.first.isNotBlank() && it.second.isNotBlank() }
+                .sortedBy { it.first }
+                .map { PreferenceCodec.encode(listOf(it.first, it.second)) }),
+        )
+
+    fun setAppHidden(stableId: String, hidden: Boolean) {
+        hiddenApps = hiddenApps.toMutableSet().apply { if (hidden) add(stableId) else remove(stableId) }
+    }
+
+    fun setAppAlias(stableId: String, alias: String?) {
+        appAliases = appAliases.toMutableMap().apply {
+            val normalized = alias?.trim()?.take(MAX_APP_ALIAS_LENGTH).orEmpty()
+            if (normalized.isEmpty()) remove(stableId) else put(stableId, normalized)
+        }
+    }
+
     var fontColor: Int
         get() = storedColor(KEY_FONT_COLOR, DEFAULT_FONT_COLOR)
         set(value) = backend.putString(KEY_FONT_COLOR, encodeColor(value))
@@ -224,6 +255,8 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
         const val KEY_FONT_SCALE = "customization.font_scale"
         const val KEY_LAUNCHER_FONT = "customization.launcher_font"
         const val KEY_ANIMATIONS_ENABLED = "customization.animations_enabled"
+        const val KEY_HIDDEN_APPS = "apps.hidden"
+        const val KEY_APP_ALIASES = "apps.aliases"
         const val KEY_FONT_COLOR = "customization.font_color"
         const val KEY_ACCENT_COLOR = "customization.accent_color"
         const val KEY_SOLID_BACKGROUND_COLOR = "customization.solid_background_color"
@@ -242,5 +275,6 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
         const val DEFAULT_APP_LIST_TOP_MARGIN = 24
         const val DEFAULT_APP_LIST_RIGHT_MARGIN = 20
         const val DEFAULT_SEARCH_LEFT_MARGIN = 20
+        const val MAX_APP_ALIAS_LENGTH = 40
     }
 }

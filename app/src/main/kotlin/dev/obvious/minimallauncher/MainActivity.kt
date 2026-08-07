@@ -470,6 +470,15 @@ class MainActivity : Activity() {
     private fun selected(value: Boolean): String = if (value) "selected" else ""
 
     private fun renderDrawerSettings(body: LinearLayout) {
+        addSettingsSection(body, "apps")
+        addSettingsRow(
+            body,
+            "Manage apps",
+            "Rename, hide, restore, or open app details",
+            if (preferences.hiddenApps.isEmpty()) "${allApps.size}" else "${preferences.hiddenApps.size} hidden",
+            enabled = allApps.isNotEmpty(),
+        ) { showAppManagementEditor() }
+
         addSettingsSection(body, "filters")
         addSettingsRow(
             body,
@@ -795,7 +804,9 @@ class MainActivity : Activity() {
             setPadding(0, 0, dp(14), 0)
             setOnItemClickListener { _, _, position, _ -> visibleApps.getOrNull(position)?.let(::launchApp) }
             setOnItemLongClickListener { _, _, position, _ ->
-                visibleApps.getOrNull(position)?.let(::openAppDetails)
+                visibleApps.getOrNull(position)?.stableId
+                    ?.let { stableId -> allApps.firstOrNull { it.stableId == stableId } }
+                    ?.let(::showAppCustomizationActions)
                 true
             }
             setOnScrollListener(object : android.widget.AbsListView.OnScrollListener {
@@ -1112,7 +1123,8 @@ class MainActivity : Activity() {
     private fun renderFavorites() {
         favoritesView.removeAllViews()
         val byId = allApps.associateBy { it.stableId }
-        preferences.favorites.mapNotNull(byId::get).take(6).forEachIndexed { index, app ->
+        val aliases = preferences.appAliases
+        preferences.favorites.mapNotNull(byId::get).map { AppPresentationPolicy.presented(it, aliases) }.take(6).forEachIndexed { index, app ->
             favoritesView.addView(Button(this).apply {
                 text = app.label.lowercase(Locale.getDefault())
                 contentDescription = "Open ${app.label}"
@@ -1136,7 +1148,8 @@ class MainActivity : Activity() {
 
     private fun renderDrawer() {
         if (!::searchInput.isInitialized) return
-        val scoped = FilterEngine.apply(allApps, currentFilter, membership(currentFilter))
+        val catalog = AppPresentationPolicy.visibleCatalog(allApps, preferences.hiddenApps, preferences.appAliases)
+        val scoped = FilterEngine.apply(catalog, currentFilter, membership(currentFilter))
         visibleApps = AppSearch.rank(scoped, searchInput.text?.toString().orEmpty())
         val header = DrawerHeaderPolicy.content(
             currentFilter.displayName.lowercase(Locale.getDefault()),
@@ -1982,6 +1995,151 @@ class MainActivity : Activity() {
             .show()
     }
 
+    private fun showAppManagementEditor() {
+        if (allApps.isEmpty()) return
+        val aliases = preferences.appAliases
+        val hidden = preferences.hiddenApps
+        var filteredApps = managedAppsForQuery("", aliases)
+        val search = EditText(this).apply {
+            hint = "search apps"
+            setSingleLine(true)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            imeOptions = EditorInfo.IME_ACTION_DONE or EditorInfo.IME_FLAG_NO_EXTRACT_UI
+        }
+        lateinit var adapter: BaseAdapter
+        val list = ListView(this).apply {
+            divider = null
+            isVerticalScrollBarEnabled = true
+        }
+        adapter = object : BaseAdapter() {
+            override fun getCount(): Int = filteredApps.size
+            override fun getItem(position: Int): AppEntry = filteredApps[position]
+            override fun getItemId(position: Int): Long = filteredApps[position].stableId.hashCode().toLong()
+            override fun hasStableIds(): Boolean = true
+
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val row = (convertView as? TextView) ?: styledText(11f, primaryColor, regularTypeface).apply {
+                    gravity = Gravity.CENTER_VERTICAL
+                    minHeight = dp(56)
+                    setPadding(dp(16), dp(8), dp(16), dp(8))
+                }
+                val app = getItem(position)
+                row.text = managementAppLabel(app, aliases, hidden)
+                row.contentDescription = row.text
+                return row
+            }
+        }
+        list.adapter = adapter
+        search.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                filteredApps = managedAppsForQuery(s?.toString().orEmpty(), aliases)
+                adapter.notifyDataSetChanged()
+            }
+            override fun afterTextChanged(s: Editable?) = Unit
+        })
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), 0, dp(12), 0)
+            addView(search, LinearLayout.LayoutParams(MATCH, dp(52)))
+            addView(list, LinearLayout.LayoutParams(MATCH, dp(440)))
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("manage apps")
+            .setView(content)
+            .setNegativeButton("close", null)
+            .create()
+        list.setOnItemClickListener { _, _, position, _ ->
+            val app = filteredApps.getOrNull(position) ?: return@setOnItemClickListener
+            dialog.dismiss()
+            showAppCustomizationActions(app)
+        }
+        dialog.setOnShowListener {
+            dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN)
+        }
+        dialog.show()
+    }
+
+    private fun managedAppsForQuery(query: String, aliases: Map<String, String>): List<AppEntry> {
+        val normalizedQuery = AppSearch.normalize(query)
+        return allApps.filter { app ->
+            normalizedQuery.isEmpty() || AppSearch.normalize(
+                listOf(app.label, aliases[app.stableId].orEmpty(), app.packageName).joinToString(" "),
+            ).contains(normalizedQuery)
+        }.sortedWith(compareBy(
+            { AppSearch.normalize(aliases[it.stableId].orEmpty().ifBlank { it.label }) },
+            { it.isWorkProfile },
+            { it.stableId },
+        ))
+    }
+
+    private fun managementAppLabel(app: AppEntry, aliases: Map<String, String>, hidden: Set<String>): String {
+        val alias = aliases[app.stableId]?.takeIf { it.isNotBlank() }
+        return buildString {
+            append(alias ?: app.label)
+            if (app.isWorkProfile) append(" (w)")
+            if (alias != null && alias != app.label) append(" · originally ").append(app.label)
+            if (app.stableId in hidden) append(" · hidden")
+        }
+    }
+
+    private fun showAppCustomizationActions(app: AppEntry) {
+        val hidden = app.stableId in preferences.hiddenApps
+        val renamed = app.stableId in preferences.appAliases
+        val labels = mutableListOf("rename", if (hidden) "show in app drawer" else "hide from app drawer")
+        if (renamed) labels += "reset name"
+        labels += "app details"
+        AlertDialog.Builder(this)
+            .setTitle(settingsAppLabel(app))
+            .setItems(labels.toTypedArray()) { _, which ->
+                when (labels[which]) {
+                    "rename" -> showAppRenameEditor(app)
+                    "show in app drawer" -> {
+                        preferences.setAppHidden(app.stableId, false)
+                        refreshAfterAppCustomization(reopenManager = true)
+                    }
+                    "hide from app drawer" -> {
+                        preferences.setAppHidden(app.stableId, true)
+                        refreshAfterAppCustomization(reopenManager = true)
+                    }
+                    "reset name" -> {
+                        preferences.setAppAlias(app.stableId, null)
+                        refreshAfterAppCustomization(reopenManager = true)
+                    }
+                    "app details" -> openAppDetails(app)
+                }
+            }
+            .setNegativeButton("cancel", null)
+            .show()
+    }
+
+    private fun showAppRenameEditor(app: AppEntry) {
+        val input = EditText(this).apply {
+            hint = app.label
+            setSingleLine(true)
+            setText(preferences.appAliases[app.stableId] ?: app.label)
+            setSelection(length())
+        }
+        AlertDialog.Builder(this)
+            .setTitle("rename ${app.label}")
+            .setMessage("Leave the name empty to restore the original label.")
+            .setView(input)
+            .setPositiveButton("save") { _, _ ->
+                val alias = input.text.toString().trim().take(40).takeUnless { it == app.label }
+                preferences.setAppAlias(app.stableId, alias)
+                refreshAfterAppCustomization(reopenManager = true)
+            }
+            .setNegativeButton("cancel", null)
+            .show()
+    }
+
+    private fun refreshAfterAppCustomization(reopenManager: Boolean) {
+        renderFavorites()
+        renderDrawer()
+        if (settingsPage != null) renderSettingsPage()
+        if (reopenManager && settingsPage == SettingsPage.DRAWER) handler.post(::showAppManagementEditor)
+    }
+
     private fun showFilterEditor() {
         val custom = preferences.customFilters
         val labels = listOf("add category", DrawerFilter.DAILY.displayName, DrawerFilter.MEDIA.displayName) +
@@ -2073,7 +2231,10 @@ class MainActivity : Activity() {
             .show()
     }
 
-    private fun settingsAppLabel(app: AppEntry): String = app.label + if (app.isWorkProfile) " (w)" else ""
+    private fun settingsAppLabel(app: AppEntry): String {
+        val presented = AppPresentationPolicy.presented(app, preferences.appAliases)
+        return presented.label + if (app.isWorkProfile) " (w)" else ""
+    }
 
     private fun showManualWeatherCoordinatesEditor() {
         val form = LinearLayout(this).apply {
