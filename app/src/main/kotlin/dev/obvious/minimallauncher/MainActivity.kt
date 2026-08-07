@@ -3,6 +3,7 @@ package dev.obvious.minimallauncher
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.AlertDialog
+import android.app.SearchManager
 import android.app.role.RoleManager
 import android.appwidget.AppWidgetHost
 import android.appwidget.AppWidgetManager
@@ -59,6 +60,7 @@ class MainActivity : Activity() {
     private lateinit var widgetContainer: LinearLayout
     private lateinit var drawerHeader: TextView
     private lateinit var appList: ListView
+    private lateinit var emptyState: TextView
     private lateinit var filtersView: LinearLayout
     private lateinit var searchInput: EditText
     private lateinit var scrollTrack: View
@@ -119,6 +121,9 @@ class MainActivity : Activity() {
 
         catalog = AppCatalog(this, ::onCatalogChanged)
         catalog.start()
+        if (intent.action == Intent.ACTION_SEARCH) {
+            openDrawer(focusSearch = true, seed = intent.getStringExtra(SearchManager.QUERY).orEmpty())
+        }
         updateClock()
         handler.post(clockTicker)
     }
@@ -127,6 +132,14 @@ class MainActivity : Activity() {
         super.onStart()
         runCatching { appWidgetHost.startListening() }
         renderWidgets()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.action == Intent.ACTION_SEARCH) {
+            openDrawer(focusSearch = true, seed = intent.getStringExtra(SearchManager.QUERY).orEmpty())
+        }
     }
 
     override fun onStop() {
@@ -152,6 +165,9 @@ class MainActivity : Activity() {
         root = FrameLayout(this).apply {
             setBackgroundColor(Color.TRANSPARENT)
             isFocusableInTouchMode = true
+            addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
+                if (right - left != oldRight - oldLeft || bottom - top != oldBottom - oldTop) adaptHomeForWindow()
+            }
         }
         contrastOverlay = View(this).apply { importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO }
         root.addView(contrastOverlay, FrameLayout.LayoutParams(MATCH, MATCH))
@@ -269,6 +285,10 @@ class MainActivity : Activity() {
             clipToPadding = false
             setPadding(0, 0, dp(14), 0)
             setOnItemClickListener { _, _, position, _ -> visibleApps.getOrNull(position)?.let(::launchApp) }
+            setOnItemLongClickListener { _, _, position, _ ->
+                visibleApps.getOrNull(position)?.let(::openAppDetails)
+                true
+            }
             setOnScrollListener(object : android.widget.AbsListView.OnScrollListener {
                 override fun onScrollStateChanged(view: android.widget.AbsListView?, scrollState: Int) = Unit
                 override fun onScroll(view: android.widget.AbsListView?, first: Int, visible: Int, total: Int) {
@@ -277,6 +297,14 @@ class MainActivity : Activity() {
             })
         }
         drawer.addView(appList, FrameLayout.LayoutParams(dp(300), dp(300)).apply { gravity = Gravity.END })
+
+        emptyState = styledText(12f, SECONDARY, regularTypeface).apply {
+            text = "no matching apps"
+            gravity = Gravity.END or Gravity.TOP
+            setPadding(0, dp(32), dp(22), 0)
+        }
+        drawer.addView(emptyState, FrameLayout.LayoutParams(dp(300), dp(120)).apply { gravity = Gravity.END })
+        appList.emptyView = emptyState
 
         val fade = View(this).apply {
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
@@ -345,7 +373,10 @@ class MainActivity : Activity() {
             setPadding(0, 0, 0, 0)
             addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
-                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = renderDrawer()
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                    renderDrawer()
+                    appList.setSelection(0)
+                }
                 override fun afterTextChanged(s: Editable?) = Unit
             })
             setOnEditorActionListener { _, actionId, event ->
@@ -374,6 +405,13 @@ class MainActivity : Activity() {
         val absoluteTop = drawer.paddingTop + listTop
 
         appList.layoutParams = (appList.layoutParams as FrameLayout.LayoutParams).apply {
+            width = columnWidth
+            height = listHeight
+            gravity = Gravity.END or Gravity.TOP
+            topMargin = absoluteTop
+            rightMargin = right
+        }
+        emptyState.layoutParams = (emptyState.layoutParams as FrameLayout.LayoutParams).apply {
             width = columnWidth
             height = listHeight
             gravity = Gravity.END or Gravity.TOP
@@ -590,12 +628,36 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun openAppDetails(app: AppEntry) {
+        runCatching {
+            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${app.packageName}")))
+        }.onFailure {
+            Toast.makeText(this, "App details are unavailable", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private fun updateClock() {
         val now = Date()
         val timePattern = if (DateFormat.is24HourFormat(this)) "HH:mm" else "hh:mm"
         timeView.text = SimpleDateFormat(timePattern, Locale.getDefault()).format(now)
-        dateView.text = SimpleDateFormat("EEE dd MMM", Locale.getDefault()).format(now).uppercase(Locale.getDefault())
+        val datePattern = DateFormat.getBestDateTimePattern(Locale.getDefault(), "EEEddMMM")
+        dateView.text = SimpleDateFormat(datePattern, Locale.getDefault()).format(now).uppercase(Locale.getDefault())
         updateWeather()
+    }
+
+    private fun adaptHomeForWindow() {
+        if (!::timeView.isInitialized || root.width == 0 || root.height == 0) return
+        val landscape = root.width > root.height
+        timeView.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, if (landscape) 44f else 64f)
+        (favoritesView.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
+            params.bottomMargin = dp(if (landscape) 12 else 92)
+            favoritesView.layoutParams = params
+        }
+        (widgetContainer.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
+            params.topMargin = dp(if (landscape) 135 else 205)
+            params.bottomMargin = dp(if (landscape) 120 else 300)
+            widgetContainer.layoutParams = params
+        }
     }
 
     private val clockTicker = object : Runnable {
@@ -953,7 +1015,7 @@ class MainActivity : Activity() {
                 typeface = mediumTypeface
                 minHeight = dp(48)
                 setPadding(dp(8), 0, dp(8), 0)
-                isFocusable = true
+                isFocusable = false
                 setBackgroundColor(Color.TRANSPARENT)
             }
             val app = getItem(position)
