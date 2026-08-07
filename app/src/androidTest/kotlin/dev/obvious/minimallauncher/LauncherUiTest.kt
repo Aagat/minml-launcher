@@ -27,7 +27,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestName
 import org.junit.runner.RunWith
-import java.io.File
 import java.util.regex.Pattern
 
 @RunWith(AndroidJUnit4::class)
@@ -36,7 +35,6 @@ class LauncherUiTest {
 
     private lateinit var device: UiDevice
     private lateinit var scenario: ActivityScenario<MainActivity>
-    private lateinit var artifactsDirectory: File
 
     @Before fun setUp() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
@@ -49,15 +47,19 @@ class LauncherUiTest {
             animationsEnabled = false
             autoShowKeyboard = false
         }
-        artifactsDirectory = File(context.getExternalFilesDir(null), "ui-test-artifacts").apply { mkdirs() }
         scenario = ActivityScenario.launch(MainActivity::class.java)
         waitForPackage()
     }
 
     @After fun tearDown() {
         runCatching {
-            device.takeScreenshot(File(artifactsDirectory, "${testName.methodName}.png"))
-            device.dumpWindowHierarchy(File(artifactsDirectory, "${testName.methodName}.xml"))
+            device.executeShellCommand("mkdir -p $ARTIFACTS_DIRECTORY")
+            device.executeShellCommand(
+                "screencap -p $ARTIFACTS_DIRECTORY/${testName.methodName}.png",
+            )
+            device.executeShellCommand(
+                "uiautomator dump $ARTIFACTS_DIRECTORY/${testName.methodName}.xml",
+            )
         }
         runCatching { device.setOrientationNatural() }
         runCatching { scenario.close() }
@@ -289,6 +291,7 @@ class LauncherUiTest {
 
     private companion object {
         const val PACKAGE_NAME = "dev.obvious.minimallauncher"
+        const val ARTIFACTS_DIRECTORY = "/sdcard/Download/minimal-launcher-ui-test-artifacts"
         const val USER_PREFERENCES = "launcher_prefs"
         const val TIMEOUT_MS = 10_000L
     }
