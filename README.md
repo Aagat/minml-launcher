@@ -69,7 +69,11 @@ The emulator process crashed during injected drawer/keyboard input when using
 - Type with the system keyboard; Enter/Go launches the first ranked result.
 - Back dismisses the IME first, then closes the drawer.
 - Optional weather can use manual coordinates or an explicitly granted
-  approximate device location, with manual fallback and a six-hour stale cache.
+  approximate device location, with manual fallback, selectable System/Celsius/
+  Fahrenheit units, and a six-hour stale cache.
+- Clock format can follow Android or be forced to 12-hour or 24-hour display.
+- The drawer header accents only the filter name. Search is left-aligned with a
+  muted hint and configurable left margin; app rows remain right-aligned.
 - Auto appearance reacts to Android wallpaper colors while preserving a
   localized clock contrast surface on mixed-brightness wallpaper.
 - Toggle **solid background** under Customization to replace or restore the
