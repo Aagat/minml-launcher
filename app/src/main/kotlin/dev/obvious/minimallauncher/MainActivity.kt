@@ -689,6 +689,7 @@ class MainActivity : Activity() {
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
             isFocusable = true
             onSwipeUp = { openDrawer() }
+            onSwipeDown = { expandNotificationPanel() }
             onEmptyLongPress = { showLauncherSettings() }
             accessibilityDelegate = object : View.AccessibilityDelegate() {
                 override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfo) {
@@ -1319,6 +1320,15 @@ class MainActivity : Activity() {
                 getSystemService(InputMethodManager::class.java)
                     .showSoftInput(searchInput, InputMethodManager.SHOW_IMPLICIT)
             }, IME_SHOW_DELAY_MS)
+        }
+    }
+
+    private fun expandNotificationPanel() {
+        val statusBar = getSystemService("statusbar") ?: return
+        runCatching {
+            statusBar.javaClass.getMethod("expandNotificationsPanel").invoke(statusBar)
+        }.onFailure {
+            Toast.makeText(this, "Notification shade is unavailable on this device", Toast.LENGTH_SHORT).show()
         }
     }
 

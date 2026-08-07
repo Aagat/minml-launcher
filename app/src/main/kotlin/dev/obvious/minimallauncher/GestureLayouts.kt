@@ -98,13 +98,14 @@ class HomeGestureLayout @JvmOverloads constructor(
     attrs: AttributeSet? = null,
 ) : FrameLayout(context, attrs) {
     var onSwipeUp: (() -> Unit)? = null
+    var onSwipeDown: (() -> Unit)? = null
     var onEmptyLongPress: (() -> Unit)? = null
     private val threshold = ViewConfiguration.get(context).scaledTouchSlop * 3
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
     private val handler = Handler(Looper.getMainLooper())
     private var startX = 0f
     private var startY = 0f
-    private var intercepting = false
+    private var interceptedSwipe: HomeSwipeDirection? = null
     private var longPressTriggered = false
     private val longPress = Runnable {
         longPressTriggered = true
@@ -117,7 +118,7 @@ class HomeGestureLayout @JvmOverloads constructor(
             MotionEvent.ACTION_DOWN -> {
                 startX = event.x
                 startY = event.y
-                intercepting = false
+                interceptedSwipe = null
                 longPressTriggered = false
                 handler.removeCallbacks(longPress)
                 handler.postDelayed(longPress, ViewConfiguration.getLongPressTimeout().toLong())
@@ -126,9 +127,10 @@ class HomeGestureLayout @JvmOverloads constructor(
                 val dx = event.x - startX
                 val dy = event.y - startY
                 if (abs(dx) > touchSlop || abs(dy) > touchSlop) handler.removeCallbacks(longPress)
-                if (dy < -threshold && abs(dy) > abs(dx) * 1.15f) {
+                val direction = HomeGesturePolicy.swipeDirection(dx, dy, threshold.toFloat())
+                if (direction != null) {
                     handler.removeCallbacks(longPress)
-                    intercepting = true
+                    interceptedSwipe = direction
                     return true
                 }
             }
@@ -152,21 +154,38 @@ class HomeGestureLayout @JvmOverloads constructor(
                 if (abs(dx) > touchSlop || abs(dy) > touchSlop) {
                     handler.removeCallbacks(longPress)
                 }
-                if (dy < -threshold && abs(dy) > abs(dx) * 1.15f) intercepting = true
+                HomeGesturePolicy.swipeDirection(dx, dy, threshold.toFloat())?.let { interceptedSwipe = it }
             }
             MotionEvent.ACTION_UP -> {
                 handler.removeCallbacks(longPress)
-                if (intercepting) onSwipeUp?.invoke()
-                else if (!longPressTriggered) performClick()
-                intercepting = false
+                when (interceptedSwipe) {
+                    HomeSwipeDirection.UP -> onSwipeUp?.invoke()
+                    HomeSwipeDirection.DOWN -> onSwipeDown?.invoke()
+                    null -> if (!longPressTriggered) performClick()
+                }
+                interceptedSwipe = null
             }
             MotionEvent.ACTION_CANCEL -> {
                 handler.removeCallbacks(longPress)
-                intercepting = false
+                interceptedSwipe = null
             }
         }
         return true
     }
 
     override fun performClick(): Boolean = super.performClick()
+}
+
+enum class HomeSwipeDirection { UP, DOWN }
+
+object HomeGesturePolicy {
+    fun swipeDirection(
+        dx: Float,
+        dy: Float,
+        threshold: Float,
+        dominance: Float = 1.15f,
+    ): HomeSwipeDirection? {
+        if (abs(dy) <= threshold || abs(dy) <= abs(dx) * dominance) return null
+        return if (dy < 0f) HomeSwipeDirection.UP else HomeSwipeDirection.DOWN
+    }
 }
