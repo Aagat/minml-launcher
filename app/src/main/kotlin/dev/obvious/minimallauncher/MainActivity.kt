@@ -611,7 +611,7 @@ class MainActivity : Activity() {
             firstVisibleItem = appList.firstVisiblePosition,
             firstChildTop = firstChild.top - appList.paddingTop,
             rowHeight = firstChild.height,
-            viewportHeight = appList.height - appList.paddingTop - appList.paddingBottom,
+            viewportHeight = trackHeight,
             trackHeight = trackHeight,
             minimumThumbHeight = dp(30),
         )
