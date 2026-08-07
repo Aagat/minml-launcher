@@ -6,12 +6,10 @@
     <string name="no_matching_apps">no matching apps</string>
     <string name="weather_set_manual_location">weather · set manual location</string>
     <string name="weather_loading">weather · loading</string>
-    <string name="enable_open_meteo_weather">Enable Open-Meteo weather</string>
     <string name="weather_manual_disclosure">Manual coordinates are sent to Open-Meteo. Location permission is not required.</string>
     <string name="weather_location_disclosure">Approximate device coordinates are requested only while weather is enabled and are sent to Open-Meteo. Manual coordinates remain an optional fallback.</string>
     <string name="weather_manual_location">Manual coordinates</string>
     <string name="weather_approximate_location">Approximate device location</string>
-    <string name="weather_temperature_unit">temperature unit</string>
     <string name="weather_system_unit">System default (°%1$s)</string>
     <string name="weather_celsius_unit">Celsius (°C)</string>
     <string name="weather_fahrenheit_unit">Fahrenheit (°F)</string>

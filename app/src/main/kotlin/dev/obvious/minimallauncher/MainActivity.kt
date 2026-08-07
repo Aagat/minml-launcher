@@ -40,14 +40,11 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.BaseAdapter
 import android.widget.Button
-import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ListView
-import android.widget.RadioButton
-import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
@@ -400,18 +397,77 @@ class MainActivity : Activity() {
         }
 
         addSettingsSection(body, "weather")
-        val unit = when (preferences.weatherTemperatureUnit) {
-            WeatherTemperatureUnit.SYSTEM -> "system units"
-            WeatherTemperatureUnit.CELSIUS -> "celsius"
-            WeatherTemperatureUnit.FAHRENHEIT -> "fahrenheit"
+        addSettingsRow(
+            body,
+            "Show weather",
+            "Optional current conditions from Open-Meteo",
+            onOff(preferences.weatherEnabled),
+        ) {
+            preferences.weatherEnabled = !preferences.weatherEnabled
+            applyWeatherSettings(requestApproximatePermission = preferences.weatherEnabled)
+        }
+
+        addSettingsSection(body, "temperature unit")
+        val systemUnitSymbol = WeatherUnitPolicy.symbol(
+            WeatherUnitPolicy.resolve(WeatherTemperatureUnit.SYSTEM, Locale.getDefault().country),
+        )
+        addWeatherUnitRow(body, WeatherTemperatureUnit.SYSTEM, getString(R.string.weather_system_unit, systemUnitSymbol))
+        addWeatherUnitRow(body, WeatherTemperatureUnit.CELSIUS, getString(R.string.weather_celsius_unit))
+        addWeatherUnitRow(body, WeatherTemperatureUnit.FAHRENHEIT, getString(R.string.weather_fahrenheit_unit))
+
+        addSettingsSection(body, "location data")
+        addSettingsRow(
+            body,
+            getString(R.string.weather_manual_location),
+            getString(R.string.weather_manual_disclosure),
+            selected(preferences.weatherLocationMode == WeatherLocationMode.MANUAL),
+        ) {
+            preferences.weatherLocationMode = WeatherLocationMode.MANUAL
+            applyWeatherSettings()
         }
         addSettingsRow(
             body,
-            "Weather",
-            "Location, temperature unit, and provider settings",
-            if (preferences.weatherEnabled) unit else "off",
-        ) { showWeatherEditor() }
+            getString(R.string.weather_approximate_location),
+            getString(R.string.weather_location_disclosure),
+            selected(preferences.weatherLocationMode == WeatherLocationMode.APPROXIMATE),
+        ) {
+            preferences.weatherLocationMode = WeatherLocationMode.APPROXIMATE
+            applyWeatherSettings(requestApproximatePermission = preferences.weatherEnabled)
+        }
+        val coordinates = manualWeatherCoordinates()
+        addSettingsRow(
+            body,
+            if (preferences.weatherLocationMode == WeatherLocationMode.MANUAL) "Coordinates" else "Fallback coordinates",
+            if (preferences.weatherLocationMode == WeatherLocationMode.MANUAL) {
+                "Latitude and longitude sent to Open-Meteo"
+            } else {
+                "Optional fallback when device location is unavailable"
+            },
+            coordinates?.let { "${preferences.weatherLatitude.trim()}, ${preferences.weatherLongitude.trim()}" } ?: "not set",
+        ) { showManualWeatherCoordinatesEditor() }
+
+        if (preferences.weatherLocationMode == WeatherLocationMode.APPROXIMATE) {
+            val locationGranted = checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+            addSettingsRow(
+                body,
+                "Approximate-location permission",
+                if (locationGranted) "Tap to review or revoke in Android" else "Required to use device location",
+                if (locationGranted) "allowed" else "request",
+            ) {
+                if (locationGranted) openAppDetails()
+                else requestPermissions(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION), REQUEST_COARSE_LOCATION)
+            }
+        }
     }
+
+    private fun addWeatherUnitRow(body: LinearLayout, unit: WeatherTemperatureUnit, label: String) {
+        addSettingsRow(body, label, "", selected(preferences.weatherTemperatureUnit == unit)) {
+            preferences.weatherTemperatureUnit = unit
+            applyWeatherSettings()
+        }
+    }
+
+    private fun selected(value: Boolean): String = if (value) "selected" else ""
 
     private fun renderDrawerSettings(body: LinearLayout) {
         addSettingsSection(body, "filters")
@@ -1833,73 +1889,15 @@ class MainActivity : Activity() {
 
     private fun settingsAppLabel(app: AppEntry): String = app.label + if (app.isWorkProfile) " (w)" else ""
 
-    private fun showWeatherEditor() {
+    private fun showManualWeatherCoordinatesEditor() {
         val form = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(24), dp(8), dp(24), 0)
         }
-        val enabled = CheckBox(this).apply {
-            text = getString(R.string.enable_open_meteo_weather)
-            isChecked = preferences.weatherEnabled
-        }
-        val unitLabel = styledText(11f, secondaryColor, mediumTypeface).apply {
-            text = getString(R.string.weather_temperature_unit)
-            setPadding(0, dp(8), 0, 0)
-        }
-        val temperatureUnit = RadioGroup(this).apply { orientation = RadioGroup.VERTICAL }
-        val systemUnitSymbol = WeatherUnitPolicy.symbol(
-            WeatherUnitPolicy.resolve(WeatherTemperatureUnit.SYSTEM, Locale.getDefault().country),
-        )
-        val systemUnit = RadioButton(this).apply {
-            id = View.generateViewId()
-            text = getString(R.string.weather_system_unit, systemUnitSymbol)
-        }
-        val celsiusUnit = RadioButton(this).apply {
-            id = View.generateViewId()
-            text = getString(R.string.weather_celsius_unit)
-        }
-        val fahrenheitUnit = RadioButton(this).apply {
-            id = View.generateViewId()
-            text = getString(R.string.weather_fahrenheit_unit)
-        }
-        temperatureUnit.addView(systemUnit)
-        temperatureUnit.addView(celsiusUnit)
-        temperatureUnit.addView(fahrenheitUnit)
-        temperatureUnit.check(
-            when (preferences.weatherTemperatureUnit) {
-                WeatherTemperatureUnit.SYSTEM -> systemUnit.id
-                WeatherTemperatureUnit.CELSIUS -> celsiusUnit.id
-                WeatherTemperatureUnit.FAHRENHEIT -> fahrenheitUnit.id
-            },
-        )
         val disclosure = styledText(11f, secondaryColor, regularTypeface).apply {
+            text = getString(R.string.weather_manual_disclosure)
             setPadding(0, dp(8), 0, dp(8))
         }
-        val locationMode = RadioGroup(this).apply { orientation = RadioGroup.VERTICAL }
-        val manualMode = RadioButton(this).apply {
-            id = View.generateViewId()
-            text = getString(R.string.weather_manual_location)
-        }
-        val approximateMode = RadioButton(this).apply {
-            id = View.generateViewId()
-            text = getString(R.string.weather_approximate_location)
-        }
-        locationMode.addView(manualMode)
-        locationMode.addView(approximateMode)
-        locationMode.check(
-            if (preferences.weatherLocationMode == WeatherLocationMode.APPROXIMATE) approximateMode.id else manualMode.id,
-        )
-        fun updateDisclosure() {
-            disclosure.text = getString(
-                if (locationMode.checkedRadioButtonId == approximateMode.id) {
-                    R.string.weather_location_disclosure
-                } else {
-                    R.string.weather_manual_disclosure
-                },
-            )
-        }
-        locationMode.setOnCheckedChangeListener { _, _ -> updateDisclosure() }
-        updateDisclosure()
         val latitude = EditText(this).apply {
             hint = "latitude"
             setText(preferences.weatherLatitude)
@@ -1910,57 +1908,43 @@ class MainActivity : Activity() {
             setText(preferences.weatherLongitude)
             inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL or InputType.TYPE_NUMBER_FLAG_SIGNED
         }
-        form.addView(enabled)
-        form.addView(unitLabel)
-        form.addView(temperatureUnit)
-        form.addView(locationMode)
         form.addView(disclosure)
         form.addView(latitude)
         form.addView(longitude)
-        val formScroller = ScrollView(this).apply {
-            isFillViewport = true
-            addView(form, ViewGroup.LayoutParams(MATCH, WRAP))
-        }
-        AlertDialog.Builder(this)
-            .setTitle("weather")
-            .setView(formScroller)
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(if (preferences.weatherLocationMode == WeatherLocationMode.MANUAL) "weather coordinates" else "fallback coordinates")
+            .setView(form)
             .setPositiveButton("save") { _, _ ->
                 val lat = latitude.text.toString().toDoubleOrNull()
                 val lon = longitude.text.toString().toDoubleOrNull()
-                val mode = if (locationMode.checkedRadioButtonId == approximateMode.id) {
-                    WeatherLocationMode.APPROXIMATE
-                } else {
-                    WeatherLocationMode.MANUAL
-                }
                 val manualProvided = latitude.text.isNotBlank() || longitude.text.isNotBlank()
                 val manualValid = lat != null && lon != null && lat in -90.0..90.0 && lon in -180.0..180.0
-                if (enabled.isChecked && (mode == WeatherLocationMode.MANUAL || manualProvided) && !manualValid) {
+                if ((preferences.weatherEnabled && preferences.weatherLocationMode == WeatherLocationMode.MANUAL || manualProvided) && !manualValid) {
                     Toast.makeText(this, "Enter valid latitude and longitude", Toast.LENGTH_LONG).show()
                 } else {
-                    preferences.weatherEnabled = enabled.isChecked
-                    preferences.weatherLocationMode = mode
-                    preferences.weatherTemperatureUnit = when (temperatureUnit.checkedRadioButtonId) {
-                        celsiusUnit.id -> WeatherTemperatureUnit.CELSIUS
-                        fahrenheitUnit.id -> WeatherTemperatureUnit.FAHRENHEIT
-                        else -> WeatherTemperatureUnit.SYSTEM
-                    }
                     preferences.weatherLatitude = latitude.text.toString().trim()
                     preferences.weatherLongitude = longitude.text.toString().trim()
-                    weatherRequestedAt = 0L
-                    locationDeniedThisSession = false
-                    coarseLocationResolver.cancel()
-                    locationRequestInFlight = false
-                    if (enabled.isChecked && mode == WeatherLocationMode.APPROXIMATE &&
-                        checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED
-                    ) {
-                        requestPermissions(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION), REQUEST_COARSE_LOCATION)
-                    }
-                    updateWeather()
-                    renderSettingsPage()
+                    applyWeatherSettings()
                 }
             }
             .setNegativeButton("cancel", null)
-            .show()
+            .create()
+        dialog.show()
+    }
+
+    private fun applyWeatherSettings(requestApproximatePermission: Boolean = false) {
+        weatherRequestedAt = 0L
+        locationDeniedThisSession = false
+        coarseLocationResolver.cancel()
+        locationRequestInFlight = false
+        updateWeather()
+        renderSettingsPage()
+        if (requestApproximatePermission &&
+            preferences.weatherLocationMode == WeatherLocationMode.APPROXIMATE &&
+            checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION), REQUEST_COARSE_LOCATION)
+        }
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
