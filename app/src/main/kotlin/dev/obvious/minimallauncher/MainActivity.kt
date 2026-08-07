@@ -537,12 +537,14 @@ class MainActivity : Activity() {
             enabled = preferences.appearance == Appearance.SOLID,
         ) { showSolidBackgroundColorEditor() }
 
-        addSettingsSection(body, "system interface")
+        addSettingsSection(body, "motion")
         addSettingsRow(body, "Animations", "Drawer and filter transitions", onOff(preferences.animationsEnabled)) {
             preferences.animationsEnabled = !preferences.animationsEnabled
             if (!preferences.animationsEnabled) resetMotionState()
             renderSettingsPage()
         }
+
+        addSettingsSection(body, "system interface")
         addSettingsRow(body, "Hide status bar", "Use the top system-bar area", onOff(preferences.hideStatusBar)) {
             preferences.hideStatusBar = !preferences.hideStatusBar
             applyStatusBarPreference()
