@@ -471,11 +471,12 @@ class MainActivity : Activity() {
 
     private fun renderDrawerSettings(body: LinearLayout) {
         addSettingsSection(body, "apps")
+        val hiddenAppCount = allApps.count { it.stableId in preferences.hiddenApps }
         addSettingsRow(
             body,
             "Manage apps",
             "Rename, hide, restore, or open app details",
-            if (preferences.hiddenApps.isEmpty()) "${allApps.size}" else "${preferences.hiddenApps.size} hidden",
+            if (hiddenAppCount == 0) "${allApps.size}" else "$hiddenAppCount hidden",
             enabled = allApps.isNotEmpty(),
         ) { showAppManagementEditor() }
 
