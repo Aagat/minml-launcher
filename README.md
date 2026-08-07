@@ -28,7 +28,7 @@ compile SDK is 37.
 
 The generic debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
 The current locally installable release artifact is
-`app/build/outputs/apk/release/minimal-launcher-0.8.0-release-local.apk`.
+`release-artifacts/minimal-launcher-0.9.0-release-local.apk`.
 It is a non-debuggable release build signed with this workstation's Android
 debug certificate for local testing and is not suitable for public
 distribution.
@@ -43,13 +43,14 @@ Run the complete repeatable launcher check with:
 
 The runner uses an already connected emulator or starts `medium_phone`
 headlessly with the stable `swangle` renderer. It performs a clean debug build,
-all JVM tests, Android lint, and six native UI Automator flows covering Home
+all JVM tests, Android lint, and eight native UI Automator flows covering Home
 registration/settings, preference restoration, drawer rendering modes,
 search/IME/app launch/filter/dismiss gestures, rotation, and the screen-time
 widget lifecycle. It then writes one self-contained summary to
 `app/build/reports/launcher-ui/index.html`, with links to the detailed Gradle
 reports plus screenshots, the final UI hierarchy, device metadata,
-build/install logs, and filtered logcat output.
+build/install logs, and filtered logcat output. The scenarios include widget
+geometry and the complete color-selection flow.
 
 Set `ANDROID_SERIAL` to target a specific already connected device. Set
 `AVD_NAME` to use another AVD, or `KEEP_AVD=1` to leave an AVD started by the
