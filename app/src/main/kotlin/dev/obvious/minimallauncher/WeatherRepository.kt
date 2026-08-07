@@ -22,17 +22,32 @@ sealed interface WeatherResult {
     data class Unavailable(val message: String) : WeatherResult
 }
 
+enum class WeatherCacheState { MISSING, FRESH, STALE, EXPIRED }
+
+object WeatherCachePolicy {
+    fun state(fetchedAt: Long?, now: Long): WeatherCacheState {
+        if (fetchedAt == null || fetchedAt <= 0L) return WeatherCacheState.MISSING
+        val age = (now - fetchedAt).coerceAtLeast(0L)
+        return when {
+            age < WeatherRepository.REFRESH_INTERVAL -> WeatherCacheState.FRESH
+            age < WeatherRepository.MAX_CACHE_AGE -> WeatherCacheState.STALE
+            else -> WeatherCacheState.EXPIRED
+        }
+    }
+}
+
 class WeatherRepository(private val runtime: SharedPreferences) {
     private val executor = Executors.newSingleThreadExecutor()
 
     fun load(latitude: Double, longitude: Double, callback: (WeatherResult) -> Unit) {
         val cached = readCache()
         val now = System.currentTimeMillis()
-        if (cached != null && now - cached.fetchedAt < REFRESH_INTERVAL) {
+        val cacheState = WeatherCachePolicy.state(cached?.fetchedAt, now)
+        if (cached != null && cacheState == WeatherCacheState.FRESH) {
             callback(WeatherResult.Available(cached, false))
             return
         }
-        if (cached != null && now - cached.fetchedAt < MAX_CACHE_AGE) {
+        if (cached != null && cacheState == WeatherCacheState.STALE) {
             callback(WeatherResult.Available(cached, true))
         }
         executor.execute {
@@ -41,7 +56,7 @@ class WeatherRepository(private val runtime: SharedPreferences) {
                 writeCache(snapshot)
                 callback(WeatherResult.Available(snapshot, false))
             }.onFailure {
-                if (cached == null || now - cached.fetchedAt >= MAX_CACHE_AGE) {
+                if (cached == null || cacheState == WeatherCacheState.EXPIRED) {
                     callback(WeatherResult.Unavailable("weather unavailable"))
                 }
             }
@@ -116,7 +131,7 @@ class WeatherRepository(private val runtime: SharedPreferences) {
         else -> "WX"
     }
 
-    private companion object {
+    companion object {
         const val REFRESH_INTERVAL = 60 * 60 * 1000L
         const val MAX_CACHE_AGE = 6 * 60 * 60 * 1000L
     }

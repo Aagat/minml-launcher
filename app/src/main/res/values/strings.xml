@@ -16,6 +16,8 @@
     <string name="weather_location_unavailable">weather · location unavailable</string>
     <string name="weather_summary">%1$d°%2$s  •  %3$s  ·  H%4$d  L%5$d%6$s</string>
     <string name="weather_stale_suffix">  stale</string>
+    <string name="apps_list">Apps list</string>
+    <string name="filter_selected_state">Selected</string>
     <string name="drawer_dismiss_sensitivity">Drawer dismissal sensitivity</string>
     <string name="drawer_dismiss_distance">Drawer dismissal distance sensitivity</string>
     <string name="drawer_dismiss_speed">Drawer dismissal speed sensitivity</string>

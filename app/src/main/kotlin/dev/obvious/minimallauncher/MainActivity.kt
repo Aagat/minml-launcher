@@ -291,6 +291,7 @@ class MainActivity : Activity() {
         }
         weatherView = styledText(10f, wallpaperSecondaryColor, regularTypeface).apply {
             visibility = View.GONE
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
             setPadding(0, dp(8), 0, 0)
         }
         clockPanel.addView(timeView, LinearLayout.LayoutParams(WRAP, WRAP))
@@ -355,11 +356,14 @@ class MainActivity : Activity() {
         }
 
         appList = ListView(this).apply {
+            id = View.generateViewId()
             adapter = this@MainActivity.adapter
+            contentDescription = getString(R.string.apps_list)
             divider = null
             setSelector(android.R.color.transparent)
             isVerticalScrollBarEnabled = false
             choiceMode = ListView.CHOICE_MODE_NONE
+            isFocusable = true
             clipToPadding = false
             setPadding(0, 0, dp(14), 0)
             setOnItemClickListener { _, _, position, _ -> visibleApps.getOrNull(position)?.let(::launchApp) }
@@ -378,6 +382,7 @@ class MainActivity : Activity() {
 
         emptyState = styledText(12f, secondaryColor, regularTypeface).apply {
             text = getString(R.string.no_matching_apps)
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
             gravity = Gravity.END or Gravity.TOP
             setPadding(0, dp(32), dp(22), 0)
         }
@@ -400,8 +405,10 @@ class MainActivity : Activity() {
         drawer.addView(drawerFade, FrameLayout.LayoutParams(MATCH, dp(56)).apply { gravity = Gravity.BOTTOM })
 
         drawerHeader = styledText(8f, primaryColor, mediumTypeface).apply {
+            id = View.generateViewId()
             gravity = Gravity.END
             letterSpacing = 0.08f
+            isAccessibilityHeading = true
         }
         drawer.addView(drawerHeader, FrameLayout.LayoutParams(dp(300), dp(24)).apply { gravity = Gravity.END })
 
@@ -437,6 +444,7 @@ class MainActivity : Activity() {
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         }, LinearLayout.LayoutParams(dp(36), MATCH))
         searchInput = EditText(this).apply {
+            id = View.generateViewId()
             hint = "search"
             contentDescription = getString(R.string.search_apps)
             setHintTextColor(primaryColor)
@@ -472,6 +480,7 @@ class MainActivity : Activity() {
         }
         searchFrame.addView(searchUnderline, FrameLayout.LayoutParams(MATCH, dp(1)).apply { gravity = Gravity.BOTTOM })
         drawer.addView(searchFrame, FrameLayout.LayoutParams(dp(300), dp(48)).apply { gravity = Gravity.END or Gravity.BOTTOM })
+        updateDrawerFocusTraversal()
     }
 
     private fun rebuildFilterButtons() {
@@ -479,8 +488,10 @@ class MainActivity : Activity() {
         val filters = availableFilters()
         if (filters.none { it.id == currentFilter.id }) currentFilter = FilterSpec.builtIn(DrawerFilter.ALL)
         filtersView.removeAllViews()
+        var previousFocusId = appList.id
         filters.forEach { filter ->
             filtersView.addView(Button(this).apply {
+                id = View.generateViewId()
                 tag = filter
                 text = filter.displayName
                 contentDescription = "${filter.displayName} apps filter"
@@ -493,10 +504,24 @@ class MainActivity : Activity() {
                 minimumWidth = dp(48)
                 setPadding(dp(4), 0, dp(4), 0)
                 setBackgroundColor(Color.TRANSPARENT)
+                accessibilityTraversalAfter = previousFocusId
+                nextFocusUpId = previousFocusId
                 setOnClickListener { setFilter(filter) }
-            }, LinearLayout.LayoutParams(WRAP, dp(48)))
+            }.also { previousFocusId = it.id }, LinearLayout.LayoutParams(WRAP, dp(48)))
         }
+        updateDrawerFocusTraversal()
         filtersScroller.post { filtersScroller.scrollTo(0, 0) }
+    }
+
+    private fun updateDrawerFocusTraversal() {
+        if (!::searchInput.isInitialized) return
+        val previousId = if (preferences.showFilterBar && filtersView.childCount > 0) {
+            filtersView.getChildAt(filtersView.childCount - 1).id
+        } else {
+            appList.id
+        }
+        searchInput.accessibilityTraversalAfter = previousId
+        searchInput.nextFocusUpId = previousId
     }
 
     private fun positionDrawerChildren() {
@@ -681,6 +706,9 @@ class MainActivity : Activity() {
             val active = spec.id == currentFilter.id
             (button as TextView).setTextColor(if (active) accentColor else secondaryColor)
             button.isSelected = active
+            if (android.os.Build.VERSION.SDK_INT >= 30) button.stateDescription = if (active) {
+                getString(R.string.filter_selected_state)
+            } else null
             button.contentDescription = "${spec.displayName} apps filter${if (active) ", selected" else ""}"
         }
         appList.post { updateScrollThumb(appList.firstVisiblePosition, appList.childCount, adapter.count) }
