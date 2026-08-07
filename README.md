@@ -53,9 +53,11 @@ The emulator process crashed during injected drawer/keyboard input when using
 ## Interaction summary
 
 - Swipe up on Home, invoke TalkBack's **Open apps** action, or type on a physical
-  keyboard to open the drawer.
+  keyboard to open the drawer. Search is focused and the system keyboard opens
+  automatically.
 - Tap filter labels or swipe horizontally over the drawer (including app rows)
   to cycle all/daily/work/media. Vertical gestures continue to scroll the list.
+- Pull down from the top of the app list to return Home.
 - Type with the system keyboard; Enter/Go launches the first ranked result.
 - Back dismisses the IME first, then closes the drawer.
 - Long-press empty Home space to configure favorites, filters, appearance,
