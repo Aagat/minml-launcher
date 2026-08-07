@@ -468,7 +468,7 @@ class MainActivity : Activity() {
                 addSettingsRow(
                     body,
                     "2. Permit usage access",
-                    "Open Android Usage Access, select Minimal Launcher, and enable the switch",
+                    "Open Android Usage Access, select minml launcher, and enable the switch",
                     "usage access",
                 ) { openUsageAccessSettings() }
             }
@@ -689,7 +689,7 @@ class MainActivity : Activity() {
         addSettingsRow(
             body,
             "Default Home",
-            if (isHome) "Minimal Launcher is the current Home app" else "Choose the device's Home app",
+            if (isHome) "minml launcher is the current Home app" else "Choose the device's Home app",
             if (isHome) "selected" else "choose",
         ) { requestHomeRole() }
 
@@ -716,7 +716,7 @@ class MainActivity : Activity() {
 
     private fun renderAboutSettings(body: LinearLayout) {
         val packageInfo = packageManager.getPackageInfo(packageName, 0)
-        addSettingsSection(body, "minimal launcher")
+        addSettingsSection(body, "minml launcher")
         body.addView(settingsText(
             "A native, text-first Android Home application focused on fast app access, negative space, and system-integrated customization.",
             13f,
@@ -729,6 +729,12 @@ class MainActivity : Activity() {
         addSettingsRow(body, "Version", "Installed launcher build", "${packageInfo.versionName} (${packageInfo.longVersionCode})")
         addSettingsRow(body, "Application ID", "Android package identity", packageName)
         addSettingsRow(body, "Platform", "Native Android Views · no WebView", "SDK 29+")
+        addSettingsRow(body, "License", "Free and open-source software", "GPL-3.0")
+        addSettingsRow(body, "Source code", "github.com/Aagat/minml-launcher", "GitHub") {
+            runCatching {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/Aagat/minml-launcher")))
+            }
+        }
     }
 
     private fun addSettingsSection(parent: LinearLayout, title: String) {
@@ -826,7 +832,7 @@ class MainActivity : Activity() {
         home = HomeGestureLayout(this).apply {
             id = R.id.launcher_home
             setBackgroundColor(Color.TRANSPARENT)
-            contentDescription = "Minimal Launcher Home"
+            contentDescription = "minml launcher Home"
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
             isFocusable = true
             onSwipeUp = { openDrawer() }
@@ -878,7 +884,7 @@ class MainActivity : Activity() {
         clockPanel.addView(weatherView, LinearLayout.LayoutParams(WRAP, WRAP))
         homeRolePrompt = Button(this).apply {
             text = launcherText(getString(R.string.not_default_home_switch))
-            contentDescription = "Minimal Launcher is not the default Home app. Switch Home app."
+            contentDescription = "minml launcher is not the default Home app. Switch Home app."
             gravity = Gravity.END or Gravity.CENTER_VERTICAL
             isAllCaps = false
             typeface = regularTypeface

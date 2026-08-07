@@ -77,10 +77,13 @@ class LauncherUiTest {
             assertTrue(roleManager.isRoleHeld(RoleManager.ROLE_HOME))
         }
 
-        waitForDescription("Minimal Launcher Home")
+        waitForDescription("minml launcher Home")
         openSettings()
         waitForText("Choose how your Home screen and app drawer look and behave.")
         listOf("Home screen", "App drawer", "Appearance", "System", "About").forEach(::waitForText)
+        waitForText("About").click()
+        waitForText("GPL-3.0")
+        waitForText("github.com/Aagat/minml-launcher")
     }
 
     @Test fun textCapitalizationPersistsAcrossRecreation() {
@@ -213,7 +216,7 @@ class LauncherUiTest {
         device.pressHome()
         scenario = ActivityScenario.launch(MainActivity::class.java)
         waitForPackage()
-        waitForDescription("Minimal Launcher Home")
+        waitForDescription("minml launcher Home")
         openDrawer()
         val listY = device.displayHeight / 3
         device.swipe(device.displayWidth - 160, listY, device.displayWidth / 4, listY, 24)
@@ -225,7 +228,7 @@ class LauncherUiTest {
         assertTrue(eventually { !isImeVisible() })
         assertNotNull(device.findObject(By.res(PACKAGE_NAME, "drawer_search")))
         device.swipe(device.displayWidth / 2, 180, device.displayWidth / 2, 1_100, 6)
-        waitForDescription("Minimal Launcher Home")
+        waitForDescription("minml launcher Home")
     }
 
     @Test fun rotationKeepsDrawerUsable() {
@@ -326,7 +329,7 @@ class LauncherUiTest {
         waitForText("remove built-in screen time?")
         waitForAndroidResource("button1").click()
         assertTrue(eventually { device.findObject(By.res(PACKAGE_NAME, "home_screen_time")) == null })
-        waitForDescription("Minimal Launcher Home")
+        waitForDescription("minml launcher Home")
         scenario.onActivity { activity -> assertFalse(preferences(activity).showScreenTime) }
     }
 
@@ -350,7 +353,7 @@ class LauncherUiTest {
     }
 
     private fun openSettings() {
-        waitForDescription("Minimal Launcher Home")
+        waitForDescription("minml launcher Home")
         val x = (device.displayWidth / 10).coerceAtLeast(80)
         val y = device.displayHeight / 2
         device.swipe(x, y, x, y, 160)
@@ -366,11 +369,11 @@ class LauncherUiTest {
     private fun closeSettingsCategoryAndRoot() {
         waitForDescription("Back to launcher settings").click()
         waitForDescription("Close settings").click()
-        waitForDescription("Minimal Launcher Home")
+        waitForDescription("minml launcher Home")
     }
 
     private fun openDrawer() {
-        waitForDescription("Minimal Launcher Home")
+        waitForDescription("minml launcher Home")
         device.swipe(
             device.displayWidth / 2,
             device.displayHeight - 300,
@@ -436,7 +439,7 @@ class LauncherUiTest {
 
     private companion object {
         const val PACKAGE_NAME = "dev.obvious.minimallauncher"
-        const val ARTIFACTS_DIRECTORY = "/sdcard/Download/minimal-launcher-ui-test-artifacts"
+        const val ARTIFACTS_DIRECTORY = "/sdcard/Download/minml-launcher-ui-test-artifacts"
         const val USER_PREFERENCES = "launcher_prefs"
         const val RUNTIME_PREFERENCES = "launcher_runtime"
         const val TIMEOUT_MS = 10_000L

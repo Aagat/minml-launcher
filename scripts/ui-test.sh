@@ -10,13 +10,13 @@ ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-${ANDROID_HOME:-$HOME/Android/Sdk}}
 ADB="$ANDROID_SDK_ROOT/platform-tools/adb"
 EMULATOR="$ANDROID_SDK_ROOT/emulator/emulator"
 REPORT_DIR="$PROJECT_ROOT/app/build/reports/launcher-ui"
-TEMP_DIR=$(mktemp -d -t minimal-launcher-ui.XXXXXX)
+TEMP_DIR=$(mktemp -d -t minml-launcher-ui.XXXXXX)
 STARTED_EMULATOR=0
 SERIAL=${ANDROID_SERIAL:-}
 START_TIME=$(date +%s)
 
 if command -v flock >/dev/null 2>&1; then
-    exec 9>"${TMPDIR:-/tmp}/minimal-launcher-ui-test.lock"
+    exec 9>"${TMPDIR:-/tmp}/minml-launcher-ui-test.lock"
     if ! flock -n 9; then
         echo "Another launcher UI test run is already active." >&2
         exit 2
@@ -85,7 +85,7 @@ if [[ "$BUILD_EXIT" == 0 ]]; then
     INSTALL_EXIT=$?
     if [[ "$INSTALL_EXIT" == 0 ]]; then
         "$ADB" -s "$SERIAL" shell cmd role add-role-holder android.app.role.HOME dev.obvious.minimallauncher >>"$TEMP_DIR/install.log" 2>&1 || true
-        "$ADB" -s "$SERIAL" shell rm -rf /sdcard/Download/minimal-launcher-ui-test-artifacts >/dev/null 2>&1 || true
+        "$ADB" -s "$SERIAL" shell rm -rf /sdcard/Download/minml-launcher-ui-test-artifacts >/dev/null 2>&1 || true
         ANDROID_SERIAL="$SERIAL" ./gradlew connectedDebugAndroidTest >"$TEMP_DIR/ui.log" 2>&1
         UI_EXIT=$?
     else
@@ -100,10 +100,10 @@ cp "$TEMP_DIR/build.log" "$REPORT_DIR/build.log"
 [[ -f "$TEMP_DIR/ui.log" ]] && cp "$TEMP_DIR/ui.log" "$REPORT_DIR/ui.log"
 [[ -f "$TEMP_DIR/emulator.log" ]] && cp "$TEMP_DIR/emulator.log" "$REPORT_DIR/emulator.log"
 
-"$ADB" -s "$SERIAL" pull /sdcard/Download/minimal-launcher-ui-test-artifacts/. "$REPORT_DIR/artifacts" >/dev/null 2>&1 || true
+"$ADB" -s "$SERIAL" pull /sdcard/Download/minml-launcher-ui-test-artifacts/. "$REPORT_DIR/artifacts" >/dev/null 2>&1 || true
 "$ADB" -s "$SERIAL" exec-out screencap -p >"$REPORT_DIR/final-screen.png" 2>/dev/null || true
-"$ADB" -s "$SERIAL" shell uiautomator dump /sdcard/minimal-launcher-final.xml >/dev/null 2>&1 || true
-"$ADB" -s "$SERIAL" pull /sdcard/minimal-launcher-final.xml "$REPORT_DIR/final-hierarchy.xml" >/dev/null 2>&1 || true
+"$ADB" -s "$SERIAL" shell uiautomator dump /sdcard/minml-launcher-final.xml >/dev/null 2>&1 || true
+"$ADB" -s "$SERIAL" pull /sdcard/minml-launcher-final.xml "$REPORT_DIR/final-hierarchy.xml" >/dev/null 2>&1 || true
 {
     "$ADB" -s "$SERIAL" shell getprop ro.build.version.release
     "$ADB" -s "$SERIAL" shell getprop ro.build.version.sdk

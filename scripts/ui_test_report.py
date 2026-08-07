@@ -120,7 +120,7 @@ def main() -> None:
 
     document = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
-<title>Minimal Launcher UI validation</title>
+<title>minml launcher UI validation</title>
 <style>
 :root{{--bg:#101416;--panel:#181e21;--text:#f4f4f2;--muted:#9ba3a6;--accent:#b7f36b;--bad:#ff7b72}}
 *{{box-sizing:border-box}} body{{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,sans-serif}}
@@ -132,7 +132,7 @@ a{{color:var(--accent)}} section{{margin-top:30px}} .shots{{display:grid;grid-te
 .shot{{background:var(--panel);border-radius:10px;overflow:hidden;text-decoration:none}} .shot img{{width:100%;height:260px;object-fit:contain;background:#080a0b;display:block}}
 .shot span{{display:block;padding:9px 12px;overflow-wrap:anywhere}} code{{color:var(--accent)}}
 </style></head><body><main>
-<h1>Minimal Launcher UI validation</h1>
+<h1>minml launcher UI validation</h1>
 <p class="meta"><span class="overall">{'PASS' if overall else 'FAIL'}</span> · device {html.escape(args.serial)} · AVD {html.escape(args.avd)} · {args.duration}s</p>
 <div class="grid">
 {status_card('Build and JVM tests', build_passed, f"{unit['tests']} tests, {unit['failures'] + unit['errors']} failed")}

@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Launcher"
+rootProject.name = "minml-launcher"
 include ":app"

@@ -116,7 +116,7 @@ class WeatherRepository(private val runtime: SharedPreferences) {
         val connection = URL(endpoint).openConnection() as HttpURLConnection
         connection.connectTimeout = 8_000
         connection.readTimeout = 8_000
-        connection.setRequestProperty("User-Agent", "MinimalLauncher/0.1")
+        connection.setRequestProperty("User-Agent", "minml-launcher/0.9.1")
         try {
             if (connection.responseCode !in 200..299) error("Weather provider returned ${connection.responseCode}")
             val json = connection.inputStream.bufferedReader().use { it.readText() }
