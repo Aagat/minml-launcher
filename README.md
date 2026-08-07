@@ -28,7 +28,7 @@ compile SDK is 37.
 
 The generic debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
 The current device-tested artifact is
-`app/build/outputs/apk/debug/minimal-launcher-0.2.1-debug.apk`.
+`app/build/outputs/apk/debug/minimal-launcher-0.3.0-debug.apk`.
 
 ## Run
 
@@ -68,6 +68,10 @@ The emulator process crashed during injected drawer/keyboard input when using
   appear exclusively in Work and use an `(w)` suffix in settings lists.
 - Type with the system keyboard; Enter/Go launches the first ranked result.
 - Back dismisses the IME first, then closes the drawer.
+- Optional short fade/slide transitions animate drawer opening and closing.
+  Horizontal filter swipes move the header and app results in the gesture's
+  direction. Both effects can be disabled together under **Appearance →
+  Motion → Animations**.
 - Optional weather can use manual coordinates or an explicitly granted
   approximate device location, with manual fallback, selectable System/Celsius/
   Fahrenheit units, and a six-hour stale cache. Weather enablement, temperature
@@ -75,6 +79,8 @@ The emulator process crashed during injected drawer/keyboard input when using
   directly as rows in Home screen settings; only coordinate text entry uses a
   focused dialog.
 - Clock format can follow Android or be forced to 12-hour or 24-hour display.
+- Typography can use the bundled Geist Mono Nerd Font, Android Monospace, or
+  Android Sans. Geist Mono remains the default.
 - The drawer header accents only the filter name. Search is left-aligned with a
   muted hint and configurable left margin; app rows remain right-aligned.
 - Auto appearance reacts to Android wallpaper colors while preserving a
