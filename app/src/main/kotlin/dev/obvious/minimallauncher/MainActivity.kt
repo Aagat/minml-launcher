@@ -24,6 +24,7 @@ import android.text.Editable
 import android.text.InputType
 import android.text.Spannable
 import android.text.SpannableString
+import android.text.TextUtils
 import android.text.TextWatcher
 import android.text.format.DateFormat
 import android.text.style.ForegroundColorSpan
@@ -66,6 +67,7 @@ class MainActivity : Activity() {
     private lateinit var dateView: TextView
     private lateinit var weatherView: TextView
     private var screenTimeView: TextView? = null
+    private var screenUsageView: TextView? = null
     private lateinit var homeRolePrompt: Button
     private lateinit var favoritesView: LinearLayout
     private lateinit var widgetContainer: LinearLayout
@@ -452,6 +454,21 @@ class MainActivity : Activity() {
                     "Open Android Usage Access, select Minimal Launcher, and enable the switch",
                     "usage access",
                 ) { openUsageAccessSettings() }
+            }
+            addSettingsRow(
+                body,
+                "Detailed usage",
+                if (usageAccessGranted) {
+                    "Show up to four most-used apps below today's screen-on total"
+                } else {
+                    "Available after Usage Access is allowed"
+                },
+                if (usageAccessGranted) onOff(preferences.showDetailedUsage) else "requires access",
+                enabled = usageAccessGranted,
+            ) {
+                preferences.showDetailedUsage = !preferences.showDetailedUsage
+                renderWidgets()
+                renderSettingsPage()
             }
         }
 
@@ -1183,6 +1200,7 @@ class MainActivity : Activity() {
         reconcileFavorites()
         renderFavorites()
         renderDrawer()
+        if (preferences.showDetailedUsage) updateScreenTime(force = true)
     }
 
     private fun restoreCachedCatalog() {
@@ -1625,7 +1643,12 @@ class MainActivity : Activity() {
         screenTimeRequestInFlight = true
         val generation = ++screenTimeRequestGeneration
         if (view.text.isNullOrBlank()) view.text = launcherText(getString(R.string.screen_time_loading))
-        screenTimeRepository.load(now) { result ->
+        val detailedPackages = if (preferences.showDetailedUsage) {
+            allApps.asSequence().filterNot { it.isWorkProfile }.map { it.packageName }.toSet()
+        } else {
+            emptySet()
+        }
+        screenTimeRepository.load(now, detailedPackages) { result ->
             handler.post {
                 screenTimeRequestInFlight = false
                 if (
@@ -1650,6 +1673,7 @@ class MainActivity : Activity() {
                 view.isClickable = false
                 view.isFocusable = false
                 view.setOnClickListener(null)
+                renderDetailedUsage(result.topApps)
             }
             ScreenTimeResult.PermissionRequired -> {
                 view.text = launcherText(getString(R.string.screen_time_permission_required))
@@ -1657,6 +1681,7 @@ class MainActivity : Activity() {
                 view.isClickable = true
                 view.isFocusable = true
                 view.setOnClickListener { showSettings(SettingsPage.HOME) }
+                screenUsageView?.visibility = View.GONE
             }
             ScreenTimeResult.Unavailable -> {
                 view.text = launcherText(getString(R.string.screen_time_unavailable))
@@ -1664,6 +1689,36 @@ class MainActivity : Activity() {
                 view.isClickable = false
                 view.isFocusable = false
                 view.setOnClickListener(null)
+                screenUsageView?.visibility = View.GONE
+            }
+        }
+    }
+
+    private fun renderDetailedUsage(topApps: List<AppUsageDuration>) {
+        val detailView = screenUsageView ?: return
+        if (!preferences.showDetailedUsage) {
+            detailView.visibility = View.GONE
+            return
+        }
+        val aliases = preferences.appAliases
+        val labelsByPackage = allApps.asSequence()
+            .filterNot { it.isWorkProfile }
+            .map { AppPresentationPolicy.presented(it, aliases) }
+            .distinctBy { it.packageName }
+            .associate { it.packageName to it.label }
+        val rows = topApps.mapNotNull { usage ->
+            labelsByPackage[usage.packageName]?.let { label ->
+                Triple(label, ScreenTimeFormatter.compact(usage.durationMillis), usage.durationMillis)
+            }
+        }.take(DETAILED_USAGE_APP_LIMIT)
+        detailView.visibility = View.VISIBLE
+        if (rows.isEmpty()) {
+            detailView.text = launcherText("no app usage yet")
+            detailView.contentDescription = "No app usage recorded yet today."
+        } else {
+            detailView.text = rows.joinToString("\n") { (label, compact) -> launcherText("$label · $compact") }
+            detailView.contentDescription = "Most used apps today. " + rows.joinToString(". ") { (label, _, duration) ->
+                "$label, ${ScreenTimeFormatter.spoken(duration)}"
             }
         }
     }
@@ -1758,6 +1813,7 @@ class MainActivity : Activity() {
         dateView.setTextColor(if (localizedDecision.tone == ScrimTone.NONE) secondaryColor else wallpaperSecondaryColor)
         clockPanel.visibility = if (preferences.showBuiltInClock) View.VISIBLE else View.GONE
         screenTimeView?.setTextColor(wallpaperSecondaryColor)
+        screenUsageView?.setTextColor(wallpaperSecondaryColor)
         root.post(::adaptHomeForWindow)
     }
 
@@ -2639,7 +2695,17 @@ class MainActivity : Activity() {
         screenTimeRequestInFlight = false
         widgetContainer.removeAllViews()
         screenTimeView = null
+        screenUsageView = null
         if (preferences.showScreenTime) {
+            val screenTimeBlock = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.END
+                isLongClickable = true
+                setOnLongClickListener {
+                    showScreenTimeActions()
+                    true
+                }
+            }
             screenTimeView = styledText(12f, wallpaperSecondaryColor, mediumTypeface).apply {
                 id = R.id.home_screen_time
                 gravity = Gravity.END or Gravity.CENTER_VERTICAL
@@ -2648,13 +2714,20 @@ class MainActivity : Activity() {
                 minHeight = dp(44)
                 setPadding(dp(8), 0, dp(8), dp(8))
                 contentDescription = "Screen-on time today. Long press to hide."
-                isLongClickable = true
-                setOnLongClickListener {
-                    showScreenTimeActions()
-                    true
-                }
             }
-            widgetContainer.addView(screenTimeView, LinearLayout.LayoutParams(MATCH, WRAP).apply {
+            screenUsageView = styledText(10f, wallpaperSecondaryColor, regularTypeface).apply {
+                id = R.id.home_detailed_usage
+                gravity = Gravity.END
+                includeFontPadding = false
+                setLineSpacing(0f, 1.15f)
+                maxLines = DETAILED_USAGE_APP_LIMIT
+                ellipsize = TextUtils.TruncateAt.END
+                setPadding(dp(8), 0, dp(8), dp(8))
+                visibility = View.GONE
+            }
+            screenTimeBlock.addView(screenTimeView, LinearLayout.LayoutParams(MATCH, WRAP))
+            screenTimeBlock.addView(screenUsageView, LinearLayout.LayoutParams(MATCH, WRAP))
+            widgetContainer.addView(screenTimeBlock, LinearLayout.LayoutParams(MATCH, WRAP).apply {
                 bottomMargin = dp(4)
             })
             updateScreenTime(force = true)
@@ -2807,6 +2880,7 @@ class MainActivity : Activity() {
         const val FILTER_TRANSITION_DIM_ALPHA = 0.18f
         const val WEATHER_REFRESH_INTERVAL_MS = 60 * 60 * 1000L
         const val SCREEN_TIME_REFRESH_INTERVAL_MS = 30_000L
+        const val DETAILED_USAGE_APP_LIMIT = 4
         const val SETTINGS_BACKGROUND_COLOR = 0xFF0B0B0D.toInt()
         const val SETTINGS_PRIMARY_COLOR = 0xFFF4F4F2.toInt()
         const val SETTINGS_SECONDARY_COLOR = 0xFFA0A09A.toInt()

@@ -3,6 +3,7 @@
     <item name="launcher_root" type="id" />
     <item name="launcher_home" type="id" />
     <item name="home_screen_time" type="id" />
+    <item name="home_detailed_usage" type="id" />
     <item name="launcher_drawer" type="id" />
     <item name="drawer_app_list" type="id" />
     <item name="drawer_header" type="id" />

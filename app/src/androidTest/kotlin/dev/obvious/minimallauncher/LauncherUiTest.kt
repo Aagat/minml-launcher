@@ -192,6 +192,7 @@ class LauncherUiTest {
         waitForText("Show screen time").click()
         waitForText("1. Allow restricted settings")
         waitForText("2. Permit usage access")
+        assertFalse(waitForDescriptionContains("Detailed usage").isEnabled)
         closeSettingsCategoryAndRoot()
 
         waitForResource("home_screen_time").click()
@@ -202,9 +203,15 @@ class LauncherUiTest {
         device.executeShellCommand("appops set $PACKAGE_NAME GET_USAGE_STATS allow")
         scenario.recreate()
         waitForPackage()
+        openSettingsCategory("Home screen")
+        val detailedUsage = waitForDescriptionContains("Detailed usage")
+        assertTrue(detailedUsage.isEnabled)
+        detailedUsage.click()
+        closeSettingsCategoryAndRoot()
         val widget = waitForResource("home_screen_time")
         assertTrue(eventually { widget.text?.toString()?.startsWith("screen on ·") == true })
         assertTrue(widget.contentDescription.toString().startsWith("Screen on today,"))
+        assertTrue(waitForResource("home_detailed_usage").text?.isNotBlank() == true)
         val center = widget.visibleCenter
         device.swipe(center.x, center.y, center.x, center.y, 160)
         waitForText("built-in screen time")
