@@ -279,6 +279,12 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.START
             setPadding(dp(16), dp(10), dp(16), dp(12))
+            contentDescription = "Built-in clock and date. Long press to hide."
+            isLongClickable = true
+            setOnLongClickListener {
+                showBuiltInClockActions()
+                true
+            }
         }
         timeView = styledText(64f, primaryColor, mediumTypeface).apply {
             includeFontPadding = false
@@ -834,7 +840,11 @@ class MainActivity : Activity() {
             favoritesView.layoutParams = params
         }
         (widgetContainer.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
-            params.topMargin = dp(if (landscape) 135 else 205)
+            params.topMargin = dp(
+                if (!preferences.showBuiltInClock) 20
+                else if (landscape) 135
+                else 205,
+            )
             params.bottomMargin = dp(if (landscape) 120 else 300)
             widgetContainer.layoutParams = params
         }
@@ -927,6 +937,9 @@ class MainActivity : Activity() {
 
     private fun applyAppearance() {
         val appearance = preferences.appearance
+        root.setBackgroundColor(
+            if (appearance == Appearance.SOLID) preferences.solidBackgroundColor else Color.TRANSPARENT,
+        )
         val autoDecision = if (appearance == Appearance.AUTO) {
             ContrastPolicy.decide(systemWallpaperPrimaryColor(), primaryColor)
         } else null
@@ -934,10 +947,22 @@ class MainActivity : Activity() {
             Appearance.TRANSPARENT -> AutoContrastDecision(ScrimTone.NONE, ScrimStrength.LIGHT)
             Appearance.AUTO -> autoDecision!!
             Appearance.GRADIENT -> AutoContrastDecision(ScrimTone.DARK, ScrimStrength.STRONG)
+            Appearance.SOLID -> AutoContrastDecision(ScrimTone.NONE, ScrimStrength.LIGHT)
         }
         contrastOverlay.background = GradientDrawable(
             GradientDrawable.Orientation.TOP_BOTTOM,
             fullScreenScrimColors(decision),
+        )
+        val drawerSurfaceColor = if (appearance == Appearance.SOLID) preferences.solidBackgroundColor else Color.BLACK
+        drawerBottomSurface.setBackgroundColor(drawerSurfaceColor)
+        drawerFade.background = GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            intArrayOf(
+                Color.TRANSPARENT,
+                withAlpha(drawerSurfaceColor, 0x33),
+                withAlpha(drawerSurfaceColor, 0xB3),
+                drawerSurfaceColor,
+            ),
         )
         val localizedDecision = if (appearance == Appearance.AUTO) {
             ContrastPolicy.localizedFallback(decision, primaryColor)
@@ -946,6 +971,20 @@ class MainActivity : Activity() {
             GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, colors).apply { cornerRadius = dp(8).toFloat() }
         }
         dateView.setTextColor(if (localizedDecision.tone == ScrimTone.NONE) secondaryColor else wallpaperSecondaryColor)
+        clockPanel.visibility = if (preferences.showBuiltInClock) View.VISIBLE else View.GONE
+        root.post(::adaptHomeForWindow)
+    }
+
+    private fun showBuiltInClockActions() {
+        AlertDialog.Builder(this)
+            .setTitle("built-in clock/date")
+            .setItems(arrayOf("hide")) { _, _ ->
+                preferences.showBuiltInClock = false
+                applyAppearance()
+                Toast.makeText(this, "Clock/date hidden. Restore it in Customization.", Toast.LENGTH_LONG).show()
+            }
+            .setNegativeButton("cancel", null)
+            .show()
     }
 
     private fun systemWallpaperPrimaryColor(): Int? = runCatching {
@@ -1057,6 +1096,8 @@ class MainActivity : Activity() {
             "font color · ${formatColor(preferences.fontColor)}",
             "accent color · ${formatColor(preferences.accentColor)}",
             "appearance · ${preferences.appearance.name.lowercase()}",
+            "solid background · ${formatColor(preferences.solidBackgroundColor)}",
+            "built-in clock/date · ${if (preferences.showBuiltInClock) "shown" else "hidden"}",
             "keyboard on drawer · ${if (preferences.autoShowKeyboard) "on" else "off"}",
             "filter labels · ${if (preferences.showFilterBar) "shown" else "hidden"}",
             "bottom gradient · ${if (preferences.showDrawerGradient) "on" else "off"}",
@@ -1072,7 +1113,12 @@ class MainActivity : Activity() {
                     1 -> showColorEditor(accent = false)
                     2 -> showColorEditor(accent = true)
                     3 -> showAppearanceEditor()
-                    4 -> {
+                    4 -> showSolidBackgroundColorEditor()
+                    5 -> {
+                        preferences.showBuiltInClock = !preferences.showBuiltInClock
+                        applyAppearance()
+                    }
+                    6 -> {
                         preferences.autoShowKeyboard = !preferences.autoShowKeyboard
                         Toast.makeText(
                             this,
@@ -1080,20 +1126,20 @@ class MainActivity : Activity() {
                             Toast.LENGTH_SHORT,
                         ).show()
                     }
-                    5 -> {
+                    7 -> {
                         preferences.showFilterBar = !preferences.showFilterBar
                         recreate()
                     }
-                    6 -> {
+                    8 -> {
                         preferences.showDrawerGradient = !preferences.showDrawerGradient
                         recreate()
                     }
-                    7 -> {
+                    9 -> {
                         preferences.showSearchUnderline = !preferences.showSearchUnderline
                         recreate()
                     }
-                    8 -> showAppListMarginsEditor()
-                    9 -> {
+                    10 -> showAppListMarginsEditor()
+                    11 -> {
                         preferences.hideStatusBar = !preferences.hideStatusBar
                         recreate()
                     }
@@ -1206,6 +1252,30 @@ class MainActivity : Activity() {
                 } else {
                     val opaque = parsed or 0xFF000000.toInt()
                     if (accent) preferences.accentColor = opaque else preferences.fontColor = opaque
+                    recreate()
+                }
+            }
+            .setNegativeButton("cancel", null)
+            .show()
+    }
+
+    private fun showSolidBackgroundColorEditor() {
+        val input = EditText(this).apply {
+            hint = "#RRGGBB"
+            setSingleLine(true)
+            setText(formatColor(preferences.solidBackgroundColor))
+            setSelection(length())
+        }
+        AlertDialog.Builder(this)
+            .setTitle("solid background color")
+            .setView(input)
+            .setPositiveButton("save") { _, _ ->
+                val parsed = runCatching { Color.parseColor(input.text.toString().trim()) }.getOrNull()
+                if (parsed == null) {
+                    Toast.makeText(this, "Use a color such as #101416", Toast.LENGTH_SHORT).show()
+                } else {
+                    preferences.solidBackgroundColor = parsed or 0xFF000000.toInt()
+                    preferences.appearance = Appearance.SOLID
                     recreate()
                 }
             }

@@ -10,7 +10,7 @@ class LauncherPreferencesTest {
         val backend = MapBackend()
         LauncherPreferences(backend).apply {
             favorites = listOf("profile:pkg/A", "unicode:应用", "profile:pkg/A")
-            appearance = Appearance.GRADIENT
+            appearance = Appearance.SOLID
             weatherEnabled = true
             weatherLatitude = "41.3874"
             weatherLongitude = "2.1686"
@@ -22,6 +22,8 @@ class LauncherPreferencesTest {
             fontScalePercent = 118
             fontColor = 0xFF112233.toInt()
             accentColor = 0xFFABCDEF.toInt()
+            solidBackgroundColor = 0xFF102030.toInt()
+            showBuiltInClock = false
             autoShowKeyboard = false
             showFilterBar = false
             showDrawerGradient = false
@@ -34,7 +36,7 @@ class LauncherPreferencesTest {
 
         val restored = LauncherPreferences(backend)
         assertEquals(listOf("profile:pkg/A", "unicode:应用"), restored.favorites)
-        assertEquals(Appearance.GRADIENT, restored.appearance)
+        assertEquals(Appearance.SOLID, restored.appearance)
         assertTrue(restored.weatherEnabled)
         assertEquals("41.3874", restored.weatherLatitude)
         assertEquals(WeatherLocationMode.APPROXIMATE, restored.weatherLocationMode)
@@ -45,6 +47,8 @@ class LauncherPreferencesTest {
         assertEquals(118, restored.fontScalePercent)
         assertEquals(0xFF112233.toInt(), restored.fontColor)
         assertEquals(0xFFABCDEF.toInt(), restored.accentColor)
+        assertEquals(0xFF102030.toInt(), restored.solidBackgroundColor)
+        assertFalse(restored.showBuiltInClock)
         assertFalse(restored.autoShowKeyboard)
         assertFalse(restored.showFilterBar)
         assertFalse(restored.showDrawerGradient)
@@ -79,6 +83,8 @@ class LauncherPreferencesTest {
         assertEquals(100, preferences.fontScalePercent)
         assertEquals(0xFFF4F4F2.toInt(), preferences.fontColor)
         assertEquals(0xFFB7F36B.toInt(), preferences.accentColor)
+        assertEquals(0xFF000000.toInt(), preferences.solidBackgroundColor)
+        assertTrue(preferences.showBuiltInClock)
         assertTrue(preferences.autoShowKeyboard)
         assertTrue(preferences.showFilterBar)
         assertTrue(preferences.showDrawerGradient)

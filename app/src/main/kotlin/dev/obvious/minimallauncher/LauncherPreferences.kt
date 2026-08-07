@@ -2,7 +2,7 @@ package dev.obvious.minimallauncher
 
 import android.content.SharedPreferences
 
-enum class Appearance { AUTO, TRANSPARENT, GRADIENT }
+enum class Appearance { AUTO, TRANSPARENT, GRADIENT, SOLID }
 enum class WeatherLocationMode { MANUAL, APPROXIMATE }
 
 interface PreferenceBackend {
@@ -102,6 +102,14 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
         get() = storedColor(KEY_ACCENT_COLOR, DEFAULT_ACCENT_COLOR)
         set(value) = backend.putString(KEY_ACCENT_COLOR, encodeColor(value))
 
+    var solidBackgroundColor: Int
+        get() = storedColor(KEY_SOLID_BACKGROUND_COLOR, DEFAULT_SOLID_BACKGROUND_COLOR)
+        set(value) = backend.putString(KEY_SOLID_BACKGROUND_COLOR, encodeColor(value))
+
+    var showBuiltInClock: Boolean
+        get() = backend.getBoolean(KEY_SHOW_BUILT_IN_CLOCK, true)
+        set(value) = backend.putBoolean(KEY_SHOW_BUILT_IN_CLOCK, value)
+
     var autoShowKeyboard: Boolean
         get() = backend.getBoolean(KEY_AUTO_SHOW_KEYBOARD, true)
         set(value) = backend.putBoolean(KEY_AUTO_SHOW_KEYBOARD, value)
@@ -180,6 +188,8 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
         const val KEY_FONT_SCALE = "customization.font_scale"
         const val KEY_FONT_COLOR = "customization.font_color"
         const val KEY_ACCENT_COLOR = "customization.accent_color"
+        const val KEY_SOLID_BACKGROUND_COLOR = "customization.solid_background_color"
+        const val KEY_SHOW_BUILT_IN_CLOCK = "customization.show_built_in_clock"
         const val KEY_AUTO_SHOW_KEYBOARD = "customization.auto_show_keyboard"
         const val KEY_SHOW_FILTER_BAR = "customization.show_filter_bar"
         const val KEY_SHOW_DRAWER_GRADIENT = "customization.show_drawer_gradient"
@@ -189,6 +199,7 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
         const val KEY_HIDE_STATUS_BAR = "customization.hide_status_bar"
         const val DEFAULT_FONT_COLOR = 0xFFF4F4F2.toInt()
         const val DEFAULT_ACCENT_COLOR = 0xFFB7F36B.toInt()
+        const val DEFAULT_SOLID_BACKGROUND_COLOR = 0xFF000000.toInt()
         const val DEFAULT_APP_LIST_TOP_MARGIN = 24
         const val DEFAULT_APP_LIST_RIGHT_MARGIN = 20
     }
