@@ -8,4 +8,7 @@
     <string name="weather_loading">weather · loading</string>
     <string name="enable_open_meteo_weather">Enable Open-Meteo weather</string>
     <string name="weather_manual_disclosure">Manual coordinates are sent to Open-Meteo. Location permission is not required.</string>
+    <string name="drawer_dismiss_sensitivity">Drawer dismissal sensitivity</string>
+    <string name="drawer_dismiss_sensitivity_value">Sensitivity · %1$d%%</string>
+    <string name="drawer_dismiss_sensitivity_guidance">Higher values make downward swipes easier to trigger.</string>
 </resources>

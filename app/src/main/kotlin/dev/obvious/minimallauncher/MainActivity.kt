@@ -39,6 +39,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.ScrollView
+import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import java.text.SimpleDateFormat
@@ -287,8 +288,9 @@ class MainActivity : Activity() {
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
             contentDescription = "App drawer"
             onFilterSwipe = { cycleFilter(it) }
-            onSwipeDown = { closeDrawer() }
+            onSwipeDown = { handleDrawerSwipeDown() }
             canSwipeDown = { !appList.canScrollVertically(-1) }
+            dismissSensitivity = preferences.drawerDismissSensitivity
         }
 
         appList = ListView(this).apply {
@@ -633,15 +635,23 @@ class MainActivity : Activity() {
         home.requestFocus()
     }
 
+    private fun dismissDrawerIme() {
+        getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(searchInput.windowToken, 0)
+        searchInput.clearFocus()
+        drawer.requestFocus()
+    }
+
+    private fun handleDrawerSwipeDown() {
+        if (imeVisible) dismissDrawerIme() else closeDrawer()
+    }
+
     @SuppressLint("GestureBackNavigation")
     @Deprecated("Handled by OnBackInvokedDispatcher on Android 13+")
     override fun onBackPressed() = handleBack()
 
     private fun handleBack() {
         if (drawerOpen && imeVisible) {
-            getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(searchInput.windowToken, 0)
-            searchInput.clearFocus()
-            drawer.requestFocus()
+            dismissDrawerIme()
             return
         }
         if (drawerOpen) {
@@ -763,6 +773,7 @@ class MainActivity : Activity() {
             "add widget · system",
             "favorites",
             "filters",
+            "drawer dismissal · ${preferences.drawerDismissSensitivity}%",
             "appearance · ${preferences.appearance.name.lowercase()}",
             "weather · ${if (preferences.weatherEnabled) "on" else "off"}",
             "permissions · system",
@@ -776,9 +787,10 @@ class MainActivity : Activity() {
                     1 -> pickWidget()
                     2 -> showFavoriteEditor()
                     3 -> showFilterEditor()
-                    4 -> showAppearanceEditor()
-                    5 -> showWeatherEditor()
-                    6, 7 -> openAppDetails()
+                    4 -> showDismissSensitivityEditor()
+                    5 -> showAppearanceEditor()
+                    6 -> showWeatherEditor()
+                    7, 8 -> openAppDetails()
                 }
             }
             .setNegativeButton("close", null)
@@ -810,6 +822,46 @@ class MainActivity : Activity() {
                 applyAppearance()
                 dialog.dismiss()
             }
+            .show()
+    }
+
+    private fun showDismissSensitivityEditor() {
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(8), dp(24), 0)
+        }
+        val value = styledText(12f, PRIMARY, mediumTypeface).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            text = getString(R.string.drawer_dismiss_sensitivity_value, preferences.drawerDismissSensitivity)
+        }
+        val guidance = styledText(10f, SECONDARY, regularTypeface).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            text = getString(R.string.drawer_dismiss_sensitivity_guidance)
+        }
+        val slider = SeekBar(this).apply {
+            max = 100
+            progress = preferences.drawerDismissSensitivity
+            contentDescription = getString(R.string.drawer_dismiss_sensitivity)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    value.text = getString(R.string.drawer_dismiss_sensitivity_value, progress)
+                }
+
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+        }
+        content.addView(value, LinearLayout.LayoutParams(MATCH, WRAP))
+        content.addView(slider, LinearLayout.LayoutParams(MATCH, WRAP))
+        content.addView(guidance, LinearLayout.LayoutParams(MATCH, WRAP))
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.drawer_dismiss_sensitivity))
+            .setView(content)
+            .setPositiveButton("save") { _, _ ->
+                preferences.drawerDismissSensitivity = slider.progress
+                drawer.dismissSensitivity = slider.progress
+            }
+            .setNegativeButton("cancel", null)
             .show()
     }
 

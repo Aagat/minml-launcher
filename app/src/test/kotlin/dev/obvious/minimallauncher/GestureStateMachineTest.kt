@@ -42,6 +42,19 @@ class GestureStateMachineTest {
         assertEquals(true, DrawerGesturePolicy.isDismissGesture(20f, 240f, 180L, 150f, 800f))
     }
 
+    @Test fun `higher drawer sensitivity lowers distance and velocity thresholds`() {
+        val leastSensitive = DrawerGesturePolicy.dismissThresholds(0)
+        val default = DrawerGesturePolicy.dismissThresholds(65)
+        val mostSensitive = DrawerGesturePolicy.dismissThresholds(100)
+
+        assertEquals(180f, leastSensitive.distanceDp)
+        assertEquals(1_000f, leastSensitive.velocityDpPerSecond)
+        assertEquals(true, default.distanceDp < leastSensitive.distanceDp)
+        assertEquals(true, default.velocityDpPerSecond < leastSensitive.velocityDpPerSecond)
+        assertEquals(72f, mostSensitive.distanceDp)
+        assertEquals(400f, mostSensitive.velocityDpPerSecond)
+    }
+
     @Test fun `filter swipe requires deliberate final horizontal dominance`() {
         assertEquals(null, DrawerGesturePolicy.filterStep(-60f, 4f, 72f))
         assertEquals(null, DrawerGesturePolicy.filterStep(-100f, 90f, 72f))

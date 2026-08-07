@@ -17,12 +17,11 @@ class FilterGestureLayout @JvmOverloads constructor(
     var onFilterSwipe: ((Int) -> Unit)? = null
     var onSwipeDown: (() -> Unit)? = null
     var canSwipeDown: (() -> Boolean)? = null
+    var dismissSensitivity: Int = 65
     private val density = resources.displayMetrics.density
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop.toFloat()
     private val gesture = GestureStateMachine(max(touchSlop * 3f, density * 24f), dominance = 1.25f)
     private val filterSwipeDistance = max(touchSlop * 6f, density * 72f)
-    private val dismissDistance = max(touchSlop * 10f, density * 144f)
-    private val dismissVelocity = density * 850f
     private var downX = 0f
     private var downY = 0f
     private var downTime = 0L
@@ -62,14 +61,15 @@ class FilterGestureLayout @JvmOverloads constructor(
                 val dx = event.x - downX
                 val dy = event.y - downY
                 val filterStep = DrawerGesturePolicy.filterStep(dx, dy, filterSwipeDistance)
+                val dismissThresholds = DrawerGesturePolicy.dismissThresholds(dismissSensitivity)
                 when {
                     filterStep != null -> onFilterSwipe?.invoke(filterStep)
                     swipeDownEligible && DrawerGesturePolicy.isDismissGesture(
                         dx = dx,
                         dy = dy,
                         durationMillis = event.eventTime - downTime,
-                        minimumDistance = dismissDistance,
-                        minimumVelocity = dismissVelocity,
+                        minimumDistance = density * dismissThresholds.distanceDp,
+                        minimumVelocity = density * dismissThresholds.velocityDpPerSecond,
                     ) -> onSwipeDown?.invoke()
                     else -> performClick()
                 }

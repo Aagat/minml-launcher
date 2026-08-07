@@ -63,6 +63,13 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
         get() = backend.getString(KEY_WEATHER_LONGITUDE)
         set(value) = backend.putString(KEY_WEATHER_LONGITUDE, value)
 
+    var drawerDismissSensitivity: Int
+        get() = backend.getString(KEY_DRAWER_DISMISS_SENSITIVITY, DEFAULT_DRAWER_DISMISS_SENSITIVITY.toString())
+            .toIntOrNull()
+            ?.coerceIn(0, 100)
+            ?: DEFAULT_DRAWER_DISMISS_SENSITIVITY
+        set(value) = backend.putString(KEY_DRAWER_DISMISS_SENSITIVITY, value.coerceIn(0, 100).toString())
+
     fun membership(filter: DrawerFilter): Set<String> =
         PreferenceCodec.decode(backend.getString(filterKey(filter))).toSet()
 
@@ -84,5 +91,7 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
         const val KEY_WEATHER_ENABLED = "weather.enabled"
         const val KEY_WEATHER_LATITUDE = "weather.latitude"
         const val KEY_WEATHER_LONGITUDE = "weather.longitude"
+        const val KEY_DRAWER_DISMISS_SENSITIVITY = "drawer.dismiss.sensitivity"
+        const val DEFAULT_DRAWER_DISMISS_SENSITIVITY = 65
     }
 }

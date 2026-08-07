@@ -46,6 +46,19 @@ class GestureStateMachine(
 }
 
 object DrawerGesturePolicy {
+    data class DismissThresholds(
+        val distanceDp: Float,
+        val velocityDpPerSecond: Float,
+    )
+
+    fun dismissThresholds(sensitivity: Int): DismissThresholds {
+        val normalized = sensitivity.coerceIn(0, 100) / 100f
+        return DismissThresholds(
+            distanceDp = 180f - 108f * normalized,
+            velocityDpPerSecond = 1_000f - 600f * normalized,
+        )
+    }
+
     fun filterStep(
         dx: Float,
         dy: Float,

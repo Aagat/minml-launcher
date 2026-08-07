@@ -14,6 +14,7 @@ class LauncherPreferencesTest {
             weatherEnabled = true
             weatherLatitude = "41.3874"
             weatherLongitude = "2.1686"
+            drawerDismissSensitivity = 78
             setMembership(DrawerFilter.DAILY, listOf("b", "a"))
         }
 
@@ -22,6 +23,7 @@ class LauncherPreferencesTest {
         assertEquals(Appearance.GRADIENT, restored.appearance)
         assertTrue(restored.weatherEnabled)
         assertEquals("41.3874", restored.weatherLatitude)
+        assertEquals(78, restored.drawerDismissSensitivity)
         assertEquals(setOf("a", "b"), restored.membership(DrawerFilter.DAILY))
         assertTrue(restored.isMembershipInitialized(DrawerFilter.DAILY))
         assertFalse(restored.isMembershipInitialized(DrawerFilter.WORK))
@@ -31,6 +33,16 @@ class LauncherPreferencesTest {
         assertEquals(emptyList<String>(), PreferenceCodec.decode("4:abc"))
         assertEquals(emptyList<String>(), PreferenceCodec.decode("x:value"))
         assertEquals(listOf("", "a:b"), PreferenceCodec.decode(PreferenceCodec.encode(listOf("", "a:b"))))
+    }
+
+    @Test fun `drawer sensitivity defaults and clamps to supported range`() {
+        val backend = MapBackend()
+        val preferences = LauncherPreferences(backend)
+        assertEquals(65, preferences.drawerDismissSensitivity)
+        preferences.drawerDismissSensitivity = 140
+        assertEquals(100, preferences.drawerDismissSensitivity)
+        preferences.drawerDismissSensitivity = -20
+        assertEquals(0, preferences.drawerDismissSensitivity)
     }
 
     private class MapBackend : PreferenceBackend {
