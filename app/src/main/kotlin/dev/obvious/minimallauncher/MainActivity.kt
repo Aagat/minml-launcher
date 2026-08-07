@@ -1,5 +1,6 @@
 package dev.obvious.minimallauncher
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.AlertDialog
@@ -8,6 +9,7 @@ import android.app.role.RoleManager
 import android.appwidget.AppWidgetHost
 import android.appwidget.AppWidgetManager
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -39,6 +41,8 @@ import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ListView
+import android.widget.RadioButton
+import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
@@ -81,6 +85,7 @@ class MainActivity : Activity() {
     private lateinit var runtimePreferences: android.content.SharedPreferences
     private lateinit var catalog: AppCatalog
     private lateinit var weatherRepository: WeatherRepository
+    private lateinit var coarseLocationResolver: CoarseLocationResolver
     private lateinit var appWidgetManager: AppWidgetManager
     private lateinit var appWidgetHost: AppWidgetHost
 
@@ -93,6 +98,8 @@ class MainActivity : Activity() {
     private var imeVisible = false
     private var pendingWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
     private var weatherRequestedAt = 0L
+    private var locationRequestInFlight = false
+    private var locationDeniedThisSession = false
 
     private val primaryColor: Int get() = preferences.fontColor
     private val secondaryColor: Int get() = withAlpha(preferences.fontColor, 0x88)
@@ -117,6 +124,7 @@ class MainActivity : Activity() {
         )
         runtimePreferences = getSharedPreferences(RUNTIME_PREFERENCES, MODE_PRIVATE)
         weatherRepository = WeatherRepository(runtimePreferences)
+        coarseLocationResolver = CoarseLocationResolver(this)
         appWidgetManager = AppWidgetManager.getInstance(this)
         appWidgetHost = AppWidgetHost(this, APP_WIDGET_HOST_ID)
 
@@ -177,6 +185,7 @@ class MainActivity : Activity() {
         handler.removeCallbacksAndMessages(null)
         catalog.stop()
         weatherRepository.close()
+        coarseLocationResolver.cancel()
         super.onDestroy()
     }
 
@@ -801,24 +810,74 @@ class MainActivity : Activity() {
     private fun updateWeather() {
         if (!preferences.weatherEnabled) {
             weatherView.visibility = View.GONE
+            coarseLocationResolver.cancel()
+            locationRequestInFlight = false
             return
         }
+        weatherView.visibility = View.VISIBLE
+        val manual = manualWeatherCoordinates()
+        if (preferences.weatherLocationMode == WeatherLocationMode.MANUAL) {
+            renderWeatherCoordinateDecision(
+                WeatherLocationPolicy.decide(WeatherLocationMode.MANUAL, false, null, manual),
+            )
+            return
+        }
+
+        val permissionGranted = checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        if (!permissionGranted) {
+            val decision = WeatherLocationPolicy.decide(WeatherLocationMode.APPROXIMATE, false, null, manual)
+            if (decision == WeatherCoordinateDecision.PermissionRequired && locationDeniedThisSession) {
+                weatherView.text = getString(R.string.weather_location_denied)
+            } else renderWeatherCoordinateDecision(decision)
+            return
+        }
+        if (System.currentTimeMillis() - weatherRequestedAt < WEATHER_REFRESH_INTERVAL_MS || locationRequestInFlight) return
+        locationRequestInFlight = true
+        weatherView.text = getString(R.string.weather_loading)
+        coarseLocationResolver.resolve { approximate ->
+            locationRequestInFlight = false
+            if (!preferences.weatherEnabled || preferences.weatherLocationMode != WeatherLocationMode.APPROXIMATE) return@resolve
+            renderWeatherCoordinateDecision(
+                WeatherLocationPolicy.decide(WeatherLocationMode.APPROXIMATE, true, approximate, manualWeatherCoordinates()),
+            )
+        }
+    }
+
+    private fun manualWeatherCoordinates(): WeatherCoordinates? {
         val latitude = preferences.weatherLatitude.toDoubleOrNull()
         val longitude = preferences.weatherLongitude.toDoubleOrNull()
-        weatherView.visibility = View.VISIBLE
-        if (latitude == null || longitude == null) {
-            weatherView.text = getString(R.string.weather_set_manual_location)
-            return
+        return if (latitude != null && longitude != null && latitude in -90.0..90.0 && longitude in -180.0..180.0) {
+            WeatherCoordinates(latitude, longitude)
+        } else null
+    }
+
+    private fun renderWeatherCoordinateDecision(decision: WeatherCoordinateDecision) {
+        when (decision) {
+            is WeatherCoordinateDecision.Use -> loadWeather(decision.coordinates)
+            WeatherCoordinateDecision.PermissionRequired -> weatherView.text = getString(R.string.weather_location_permission_required)
+            WeatherCoordinateDecision.LocationUnavailable -> weatherView.text = getString(R.string.weather_location_unavailable)
+            WeatherCoordinateDecision.ManualLocationRequired -> weatherView.text = getString(R.string.weather_set_manual_location)
         }
-        if (System.currentTimeMillis() - weatherRequestedAt < 60 * 60 * 1000L) return
+    }
+
+    private fun loadWeather(coordinates: WeatherCoordinates) {
+        if (System.currentTimeMillis() - weatherRequestedAt < WEATHER_REFRESH_INTERVAL_MS) return
         weatherRequestedAt = System.currentTimeMillis()
         weatherView.text = getString(R.string.weather_loading)
-        weatherRepository.load(latitude, longitude) { result ->
+        weatherRepository.load(coordinates.latitude, coordinates.longitude) { result ->
             handler.post {
                 if (!preferences.weatherEnabled) return@post
                 weatherView.text = when (result) {
                     is WeatherResult.Available -> with(result.snapshot) {
-                        "$temperature°$unit  •  $condition  ·  H$high  L$low${if (result.stale) "  stale" else ""}"
+                        getString(
+                            R.string.weather_summary,
+                            temperature,
+                            unit,
+                            condition,
+                            high,
+                            low,
+                            if (result.stale) getString(R.string.weather_stale_suffix) else "",
+                        )
                     }
                     is WeatherResult.Unavailable -> result.message
                 }
@@ -1285,9 +1344,33 @@ class MainActivity : Activity() {
             isChecked = preferences.weatherEnabled
         }
         val disclosure = styledText(11f, secondaryColor, regularTypeface).apply {
-            text = getString(R.string.weather_manual_disclosure)
             setPadding(0, dp(8), 0, dp(8))
         }
+        val locationMode = RadioGroup(this).apply { orientation = RadioGroup.VERTICAL }
+        val manualMode = RadioButton(this).apply {
+            id = View.generateViewId()
+            text = getString(R.string.weather_manual_location)
+        }
+        val approximateMode = RadioButton(this).apply {
+            id = View.generateViewId()
+            text = getString(R.string.weather_approximate_location)
+        }
+        locationMode.addView(manualMode)
+        locationMode.addView(approximateMode)
+        locationMode.check(
+            if (preferences.weatherLocationMode == WeatherLocationMode.APPROXIMATE) approximateMode.id else manualMode.id,
+        )
+        fun updateDisclosure() {
+            disclosure.text = getString(
+                if (locationMode.checkedRadioButtonId == approximateMode.id) {
+                    R.string.weather_location_disclosure
+                } else {
+                    R.string.weather_manual_disclosure
+                },
+            )
+        }
+        locationMode.setOnCheckedChangeListener { _, _ -> updateDisclosure() }
+        updateDisclosure()
         val latitude = EditText(this).apply {
             hint = "latitude"
             setText(preferences.weatherLatitude)
@@ -1299,6 +1382,7 @@ class MainActivity : Activity() {
             inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL or InputType.TYPE_NUMBER_FLAG_SIGNED
         }
         form.addView(enabled)
+        form.addView(locationMode)
         form.addView(disclosure)
         form.addView(latitude)
         form.addView(longitude)
@@ -1308,18 +1392,43 @@ class MainActivity : Activity() {
             .setPositiveButton("save") { _, _ ->
                 val lat = latitude.text.toString().toDoubleOrNull()
                 val lon = longitude.text.toString().toDoubleOrNull()
-                if (enabled.isChecked && (lat == null || lon == null || lat !in -90.0..90.0 || lon !in -180.0..180.0)) {
+                val mode = if (locationMode.checkedRadioButtonId == approximateMode.id) {
+                    WeatherLocationMode.APPROXIMATE
+                } else {
+                    WeatherLocationMode.MANUAL
+                }
+                val manualProvided = latitude.text.isNotBlank() || longitude.text.isNotBlank()
+                val manualValid = lat != null && lon != null && lat in -90.0..90.0 && lon in -180.0..180.0
+                if (enabled.isChecked && (mode == WeatherLocationMode.MANUAL || manualProvided) && !manualValid) {
                     Toast.makeText(this, "Enter valid latitude and longitude", Toast.LENGTH_LONG).show()
                 } else {
                     preferences.weatherEnabled = enabled.isChecked
+                    preferences.weatherLocationMode = mode
                     preferences.weatherLatitude = latitude.text.toString().trim()
                     preferences.weatherLongitude = longitude.text.toString().trim()
                     weatherRequestedAt = 0L
+                    locationDeniedThisSession = false
+                    coarseLocationResolver.cancel()
+                    locationRequestInFlight = false
+                    if (enabled.isChecked && mode == WeatherLocationMode.APPROXIMATE &&
+                        checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        requestPermissions(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION), REQUEST_COARSE_LOCATION)
+                    }
                     updateWeather()
                 }
             }
             .setNegativeButton("cancel", null)
             .show()
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != REQUEST_COARSE_LOCATION) return
+        val granted = grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED
+        locationDeniedThisSession = !granted
+        weatherRequestedAt = 0L
+        updateWeather()
     }
 
     private fun pickWidget() {
@@ -1480,12 +1589,14 @@ class MainActivity : Activity() {
         const val APP_WIDGET_HOST_ID = 0x4D4C
         const val REQUEST_PICK_WIDGET = 1001
         const val REQUEST_CONFIGURE_WIDGET = 1002
+        const val REQUEST_COARSE_LOCATION = 1003
         const val ACTION_OPEN_APPS = 0x01020001
         const val STATE_DRAWER_OPEN = "drawer.open"
         const val STATE_FILTER = "drawer.filter"
         const val STATE_QUERY = "drawer.query"
         const val CATALOG_CACHE_KEY = "catalog.entries"
         const val IME_SHOW_DELAY_MS = 120L
+        const val WEATHER_REFRESH_INTERVAL_MS = 60 * 60 * 1000L
         const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
         const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
     }

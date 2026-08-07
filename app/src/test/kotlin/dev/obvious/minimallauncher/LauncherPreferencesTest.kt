@@ -14,6 +14,7 @@ class LauncherPreferencesTest {
             weatherEnabled = true
             weatherLatitude = "41.3874"
             weatherLongitude = "2.1686"
+            weatherLocationMode = WeatherLocationMode.APPROXIMATE
             drawerDismissDistanceSensitivity = 78
             drawerDismissSpeedSensitivity = 84
             customFilters = listOf(CustomFilter("custom:focus", "Focus"), CustomFilter("custom:focus", "Duplicate"))
@@ -36,6 +37,7 @@ class LauncherPreferencesTest {
         assertEquals(Appearance.GRADIENT, restored.appearance)
         assertTrue(restored.weatherEnabled)
         assertEquals("41.3874", restored.weatherLatitude)
+        assertEquals(WeatherLocationMode.APPROXIMATE, restored.weatherLocationMode)
         assertEquals(78, restored.drawerDismissDistanceSensitivity)
         assertEquals(84, restored.drawerDismissSpeedSensitivity)
         assertEquals(listOf(CustomFilter("custom:focus", "Focus")), restored.customFilters)

@@ -3,6 +3,7 @@ package dev.obvious.minimallauncher
 import android.content.SharedPreferences
 
 enum class Appearance { AUTO, TRANSPARENT, GRADIENT }
+enum class WeatherLocationMode { MANUAL, APPROXIMATE }
 
 interface PreferenceBackend {
     fun getString(key: String, default: String = ""): String
@@ -62,6 +63,12 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
     var weatherLongitude: String
         get() = backend.getString(KEY_WEATHER_LONGITUDE)
         set(value) = backend.putString(KEY_WEATHER_LONGITUDE, value)
+
+    var weatherLocationMode: WeatherLocationMode
+        get() = runCatching {
+            WeatherLocationMode.valueOf(backend.getString(KEY_WEATHER_LOCATION_MODE, WeatherLocationMode.MANUAL.name))
+        }.getOrDefault(WeatherLocationMode.MANUAL)
+        set(value) = backend.putString(KEY_WEATHER_LOCATION_MODE, value.name)
 
     var drawerDismissDistanceSensitivity: Int
         get() = sensitivity(KEY_DRAWER_DISMISS_DISTANCE_SENSITIVITY)
@@ -164,6 +171,7 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
         const val KEY_WEATHER_ENABLED = "weather.enabled"
         const val KEY_WEATHER_LATITUDE = "weather.latitude"
         const val KEY_WEATHER_LONGITUDE = "weather.longitude"
+        const val KEY_WEATHER_LOCATION_MODE = "weather.location_mode"
         const val KEY_DRAWER_DISMISS_SENSITIVITY = "drawer.dismiss.sensitivity"
         const val KEY_DRAWER_DISMISS_DISTANCE_SENSITIVITY = "drawer.dismiss.distance_sensitivity"
         const val KEY_DRAWER_DISMISS_SPEED_SENSITIVITY = "drawer.dismiss.speed_sensitivity"

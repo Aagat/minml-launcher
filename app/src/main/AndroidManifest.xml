@@ -3,6 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <!-- Home-screen apps must enumerate every launchable package. The scoped
          intent query is retained for compatibility; some Android builds only
          expose the complete LauncherApps catalog with this launcher-eligible
