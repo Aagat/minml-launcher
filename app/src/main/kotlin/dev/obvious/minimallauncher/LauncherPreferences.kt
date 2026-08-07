@@ -3,6 +3,7 @@ package dev.obvious.minimallauncher
 import android.content.SharedPreferences
 
 enum class Appearance { AUTO, TRANSPARENT, GRADIENT, SOLID }
+fun Appearance.toggleSolid(): Appearance = if (this == Appearance.SOLID) Appearance.AUTO else Appearance.SOLID
 enum class WeatherLocationMode { MANUAL, APPROXIMATE }
 
 interface PreferenceBackend {

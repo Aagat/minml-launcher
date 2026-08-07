@@ -1079,7 +1079,12 @@ class MainActivity : Activity() {
     }
 
     private fun showAppearanceEditor() {
-        val choices = Appearance.entries.map { it.name.lowercase().replaceFirstChar(Char::uppercase) }.toTypedArray()
+        val choices = arrayOf(
+            "Auto · wallpaper with adaptive contrast",
+            "Transparent · wallpaper without overlay",
+            "Gradient · wallpaper with dark overlay",
+            "Solid · selected background color",
+        )
         AlertDialog.Builder(this)
             .setTitle("appearance")
             .setSingleChoiceItems(choices, preferences.appearance.ordinal) { dialog, which ->
@@ -1096,7 +1101,8 @@ class MainActivity : Activity() {
             "font color · ${formatColor(preferences.fontColor)}",
             "accent color · ${formatColor(preferences.accentColor)}",
             "appearance · ${preferences.appearance.name.lowercase()}",
-            "solid background · ${formatColor(preferences.solidBackgroundColor)}",
+            "solid background · ${if (preferences.appearance == Appearance.SOLID) "✓ on" else "off"}",
+            "solid color · ${formatColor(preferences.solidBackgroundColor)}",
             "built-in clock/date · ${if (preferences.showBuiltInClock) "shown" else "hidden"}",
             "keyboard on drawer · ${if (preferences.autoShowKeyboard) "on" else "off"}",
             "filter labels · ${if (preferences.showFilterBar) "shown" else "hidden"}",
@@ -1113,12 +1119,25 @@ class MainActivity : Activity() {
                     1 -> showColorEditor(accent = false)
                     2 -> showColorEditor(accent = true)
                     3 -> showAppearanceEditor()
-                    4 -> showSolidBackgroundColorEditor()
-                    5 -> {
+                    4 -> {
+                        preferences.appearance = preferences.appearance.toggleSolid()
+                        applyAppearance()
+                        Toast.makeText(
+                            this,
+                            if (preferences.appearance == Appearance.SOLID) {
+                                "Solid background enabled"
+                            } else {
+                                "Solid background disabled; wallpaper restored"
+                            },
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    }
+                    5 -> showSolidBackgroundColorEditor()
+                    6 -> {
                         preferences.showBuiltInClock = !preferences.showBuiltInClock
                         applyAppearance()
                     }
-                    6 -> {
+                    7 -> {
                         preferences.autoShowKeyboard = !preferences.autoShowKeyboard
                         Toast.makeText(
                             this,
@@ -1126,20 +1145,20 @@ class MainActivity : Activity() {
                             Toast.LENGTH_SHORT,
                         ).show()
                     }
-                    7 -> {
+                    8 -> {
                         preferences.showFilterBar = !preferences.showFilterBar
                         recreate()
                     }
-                    8 -> {
+                    9 -> {
                         preferences.showDrawerGradient = !preferences.showDrawerGradient
                         recreate()
                     }
-                    9 -> {
+                    10 -> {
                         preferences.showSearchUnderline = !preferences.showSearchUnderline
                         recreate()
                     }
-                    10 -> showAppListMarginsEditor()
-                    11 -> {
+                    11 -> showAppListMarginsEditor()
+                    12 -> {
                         preferences.hideStatusBar = !preferences.hideStatusBar
                         recreate()
                     }
@@ -1275,8 +1294,11 @@ class MainActivity : Activity() {
                     Toast.makeText(this, "Use a color such as #101416", Toast.LENGTH_SHORT).show()
                 } else {
                     preferences.solidBackgroundColor = parsed or 0xFF000000.toInt()
-                    preferences.appearance = Appearance.SOLID
-                    recreate()
+                    if (preferences.appearance == Appearance.SOLID) {
+                        applyAppearance()
+                    } else {
+                        Toast.makeText(this, "Color saved; turn on Solid background to use it", Toast.LENGTH_LONG).show()
+                    }
                 }
             }
             .setNegativeButton("cancel", null)

@@ -6,6 +6,13 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LauncherPreferencesTest {
+    @Test fun `solid background toggle has an obvious wallpaper fallback`() {
+        assertEquals(Appearance.SOLID, Appearance.AUTO.toggleSolid())
+        assertEquals(Appearance.SOLID, Appearance.TRANSPARENT.toggleSolid())
+        assertEquals(Appearance.SOLID, Appearance.GRADIENT.toggleSolid())
+        assertEquals(Appearance.AUTO, Appearance.SOLID.toggleSolid())
+    }
+
     @Test fun `durable state survives repository recreation`() {
         val backend = MapBackend()
         LauncherPreferences(backend).apply {
