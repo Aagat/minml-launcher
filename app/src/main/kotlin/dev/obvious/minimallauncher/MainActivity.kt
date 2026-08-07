@@ -2714,6 +2714,11 @@ class MainActivity : Activity() {
                 minHeight = dp(44)
                 setPadding(dp(8), 0, dp(8), dp(8))
                 contentDescription = "Screen-on time today. Long press to hide."
+                isLongClickable = true
+                setOnLongClickListener {
+                    showScreenTimeActions()
+                    true
+                }
             }
             screenUsageView = styledText(10f, wallpaperSecondaryColor, regularTypeface).apply {
                 id = R.id.home_detailed_usage
@@ -2724,6 +2729,11 @@ class MainActivity : Activity() {
                 ellipsize = TextUtils.TruncateAt.END
                 setPadding(dp(8), 0, dp(8), dp(8))
                 visibility = View.GONE
+                isLongClickable = true
+                setOnLongClickListener {
+                    showScreenTimeActions()
+                    true
+                }
             }
             screenTimeBlock.addView(screenTimeView, LinearLayout.LayoutParams(MATCH, WRAP))
             screenTimeBlock.addView(screenUsageView, LinearLayout.LayoutParams(MATCH, WRAP))
