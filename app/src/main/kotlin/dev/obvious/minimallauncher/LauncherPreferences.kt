@@ -9,6 +9,10 @@ enum class WeatherTemperatureUnit { SYSTEM, CELSIUS, FAHRENHEIT }
 enum class ClockFormat { SYSTEM, TWELVE_HOUR, TWENTY_FOUR_HOUR }
 enum class LauncherFont(val displayName: String) {
     GEIST_MONO("Geist Mono"),
+    GEIST("Geist"),
+    INTER("Inter"),
+    IBM_PLEX_SANS("IBM Plex Sans"),
+    SPACE_GROTESK("Space Grotesk"),
     SYSTEM_MONO("Android Monospace"),
     SYSTEM_SANS("Android Sans"),
 }

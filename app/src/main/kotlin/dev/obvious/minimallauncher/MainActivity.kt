@@ -664,6 +664,10 @@ class MainActivity : Activity() {
                 regularTypeface = resources.getFont(R.font.geist_mono_nerd_regular)
                 mediumTypeface = resources.getFont(R.font.geist_mono_nerd_medium)
             }
+            LauncherFont.GEIST -> loadVariableTypefaces(R.font.geist_variable)
+            LauncherFont.INTER -> loadVariableTypefaces(R.font.inter_variable)
+            LauncherFont.IBM_PLEX_SANS -> loadVariableTypefaces(R.font.ibm_plex_sans_variable)
+            LauncherFont.SPACE_GROTESK -> loadVariableTypefaces(R.font.space_grotesk_variable)
             LauncherFont.SYSTEM_MONO -> {
                 regularTypeface = Typeface.create("monospace", Typeface.NORMAL)
                 mediumTypeface = Typeface.create("monospace", Typeface.BOLD)
@@ -673,6 +677,12 @@ class MainActivity : Activity() {
                 mediumTypeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             }
         }
+    }
+
+    private fun loadVariableTypefaces(fontResource: Int) {
+        val family = resources.getFont(fontResource)
+        regularTypeface = Typeface.create(family, 400, false)
+        mediumTypeface = Typeface.create(family, 500, false)
     }
 
     private fun applyDrawerPresentation() {

@@ -135,6 +135,14 @@ class LauncherPreferencesTest {
         assertEquals(LauncherFont.GEIST_MONO, LauncherPreferences(backend).launcherFont)
     }
 
+    @Test fun `every font choice persists by stable enum name`() {
+        LauncherFont.entries.forEach { font ->
+            val backend = MapBackend()
+            LauncherPreferences(backend).launcherFont = font
+            assertEquals(font, LauncherPreferences(backend).launcherFont)
+        }
+    }
+
     @Test fun `app customization updates and resets individual entries`() {
         val preferences = LauncherPreferences(MapBackend())
         preferences.setAppHidden("personal:camera", true)
