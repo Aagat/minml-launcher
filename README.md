@@ -28,7 +28,7 @@ compile SDK is 37.
 
 The generic debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
 The current locally installable release artifact is
-`release-artifacts/minimal-launcher-0.9.0-release-local.apk`.
+`release-artifacts/minimal-launcher-0.9.1-release-local.apk`.
 It is a non-debuggable release build signed with this workstation's Android
 debug certificate for local testing and is not suitable for public
 distribution.
