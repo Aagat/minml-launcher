@@ -67,5 +67,7 @@ class ScreenTimePolicyTest {
         assertEquals("17m", ScreenTimeFormatter.compact(17 * 60_000L))
         assertEquals("2h", ScreenTimeFormatter.compact(2 * 60 * 60_000L))
         assertEquals("2h 7m", ScreenTimeFormatter.compact((2 * 60 + 7) * 60_000L))
+        assertEquals("less than one minute", ScreenTimeFormatter.spoken(1_000L))
+        assertEquals("1 hour 1 minute", ScreenTimeFormatter.spoken(61 * 60_000L))
     }
 }

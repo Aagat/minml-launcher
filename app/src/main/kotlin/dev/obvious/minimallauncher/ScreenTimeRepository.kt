@@ -50,6 +50,20 @@ object ScreenTimeFormatter {
             else -> "${hours}h ${minutes}m"
         }
     }
+
+    fun spoken(durationMillis: Long): String {
+        val totalMinutes = (durationMillis.coerceAtLeast(0L) / 60_000L).toInt()
+        if (totalMinutes == 0) return "less than one minute"
+        val hours = totalMinutes / 60
+        val minutes = totalMinutes % 60
+        val hourLabel = if (hours == 1) "hour" else "hours"
+        val minuteLabel = if (minutes == 1) "minute" else "minutes"
+        return when {
+            hours == 0 -> "$minutes $minuteLabel"
+            minutes == 0 -> "$hours $hourLabel"
+            else -> "$hours $hourLabel $minutes $minuteLabel"
+        }
+    }
 }
 
 sealed interface ScreenTimeResult {

@@ -186,6 +186,24 @@ class LauncherUiTest {
         waitForResource("drawer_search")
     }
 
+    @Test fun screenTimeWidgetCanBeEnabledAndHidden() {
+        device.executeShellCommand("appops set $PACKAGE_NAME GET_USAGE_STATS allow")
+        openSettingsCategory("Home screen")
+        waitForText("Show screen time").click()
+        waitForDescriptionContains("Usage access")
+        closeSettingsCategoryAndRoot()
+
+        val widget = waitForResource("home_screen_time")
+        assertTrue(eventually { widget.text?.toString()?.startsWith("screen on ·") == true })
+        assertTrue(widget.contentDescription.toString().startsWith("Screen on today,"))
+        val center = widget.visibleCenter
+        device.swipe(center.x, center.y, center.x, center.y, 160)
+        waitForText("built-in screen time")
+        waitForText("hide").click()
+        assertTrue(eventually { device.findObject(By.res(PACKAGE_NAME, "home_screen_time")) == null })
+        scenario.onActivity { activity -> assertFalse(preferences(activity).showScreenTime) }
+    }
+
     private fun setPreferences(block: LauncherPreferences.() -> Unit) {
         scenario.onActivity { activity -> preferences(activity).apply(block) }
         scenario.recreate()

@@ -19,6 +19,10 @@
     <string name="weather_location_unavailable">Weather · location unavailable</string>
     <string name="weather_summary">%1$d°%2$s  •  %3$s  ·  H%4$d  L%5$d%6$s</string>
     <string name="weather_stale_suffix">  stale</string>
+    <string name="screen_time_loading">screen on · loading</string>
+    <string name="screen_time_permission_required">screen on · allow usage access</string>
+    <string name="screen_time_unavailable">screen on · unavailable</string>
+    <string name="screen_time_summary">screen on · %1$s today</string>
     <string name="apps_list">Apps list</string>
     <string name="filter_selected_state">Selected</string>
     <string name="drawer_dismiss_sensitivity">Drawer dismissal sensitivity</string>

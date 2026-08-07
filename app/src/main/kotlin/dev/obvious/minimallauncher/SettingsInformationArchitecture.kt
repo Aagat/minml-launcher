@@ -17,7 +17,7 @@ data class SettingsCategory(
 
 object SettingsInformationArchitecture {
     val categories = listOf(
-        SettingsCategory(SettingsPage.HOME, "Home screen", "Favorites, widgets, clock, and weather"),
+        SettingsCategory(SettingsPage.HOME, "Home screen", "Favorites, widgets, clock, screen time, and weather"),
         SettingsCategory(SettingsPage.DRAWER, "App drawer", "Filters, search, layout, and gestures"),
         SettingsCategory(SettingsPage.APPEARANCE, "Appearance", "Typography, colors, background, and status bar"),
         SettingsCategory(SettingsPage.SYSTEM, "System", "Default Home, permissions, and app details"),

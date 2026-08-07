@@ -65,6 +65,7 @@ class MainActivity : Activity() {
     private lateinit var timeView: TextView
     private lateinit var dateView: TextView
     private lateinit var weatherView: TextView
+    private var screenTimeView: TextView? = null
     private lateinit var homeRolePrompt: Button
     private lateinit var favoritesView: LinearLayout
     private lateinit var widgetContainer: LinearLayout
@@ -89,6 +90,7 @@ class MainActivity : Activity() {
     private lateinit var runtimePreferences: android.content.SharedPreferences
     private lateinit var catalog: AppCatalog
     private lateinit var weatherRepository: WeatherRepository
+    private lateinit var screenTimeRepository: ScreenTimeRepository
     private lateinit var coarseLocationResolver: CoarseLocationResolver
     private lateinit var appWidgetManager: AppWidgetManager
     private lateinit var appWidgetHost: AppWidgetHost
@@ -105,6 +107,9 @@ class MainActivity : Activity() {
     private var weatherRequestedAt = 0L
     private var locationRequestInFlight = false
     private var locationDeniedThisSession = false
+    private var screenTimeRequestedAt = 0L
+    private var screenTimeRequestGeneration = 0
+    private var screenTimeRequestInFlight = false
     private var settingsPage: SettingsPage? = null
     private val settingsScrollPositions = mutableMapOf<SettingsPage, Int>()
     private var filterTransitionGeneration = 0
@@ -141,6 +146,7 @@ class MainActivity : Activity() {
         loadLauncherTypefaces()
         runtimePreferences = getSharedPreferences(RUNTIME_PREFERENCES, MODE_PRIVATE)
         weatherRepository = WeatherRepository(runtimePreferences)
+        screenTimeRepository = ScreenTimeRepository(this)
         coarseLocationResolver = CoarseLocationResolver(this)
         appWidgetManager = AppWidgetManager.getInstance(this)
         appWidgetHost = AppWidgetHost(this, APP_WIDGET_HOST_ID)
@@ -186,6 +192,7 @@ class MainActivity : Activity() {
         super.onResume()
         applyStatusBarPreference()
         if (::homeRolePrompt.isInitialized) updateHomeRolePrompt()
+        updateScreenTime(force = true)
         if (settingsPage != null) renderSettingsPage()
     }
 
@@ -209,6 +216,7 @@ class MainActivity : Activity() {
         handler.removeCallbacksAndMessages(null)
         catalog.stop()
         weatherRepository.close()
+        screenTimeRepository.close()
         coarseLocationResolver.cancel()
         runCatching { wallpaperManager.removeOnColorsChangedListener(wallpaperColorsChangedListener) }
         super.onDestroy()
@@ -400,6 +408,27 @@ class MainActivity : Activity() {
         }
         addSettingsRow(body, "Clock format", "Follow Android or override the format", clockFormatLabel()) {
             showClockFormatEditor()
+        }
+
+        addSettingsSection(body, "screen time")
+        addSettingsRow(
+            body,
+            "Show screen time",
+            "Today's screen-on duration as a built-in Home widget",
+            onOff(preferences.showScreenTime),
+        ) {
+            preferences.showScreenTime = !preferences.showScreenTime
+            renderWidgets()
+            renderSettingsPage()
+        }
+        if (preferences.showScreenTime) {
+            val usageAccessGranted = screenTimeRepository.hasUsageAccess()
+            addSettingsRow(
+                body,
+                "Usage access",
+                "Android usage events are read only to total today's screen-on time",
+                if (usageAccessGranted) "allowed" else "allow",
+            ) { openUsageAccessSettings() }
         }
 
         addSettingsSection(body, "weather")
@@ -613,6 +642,13 @@ class MainActivity : Activity() {
             if (locationGranted) openAppDetails()
             else requestPermissions(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION), REQUEST_COARSE_LOCATION)
         }
+        val usageAccessGranted = screenTimeRepository.hasUsageAccess()
+        addSettingsRow(
+            body,
+            "Usage access",
+            "Used only by the optional screen-time Home widget",
+            if (usageAccessGranted) "allowed" else "not allowed",
+        ) { openUsageAccessSettings() }
         addSettingsRow(body, "App details", "Open Android's app information screen", "system") { openAppDetails() }
     }
 
@@ -1487,6 +1523,7 @@ class MainActivity : Activity() {
         val datePattern = DateFormat.getBestDateTimePattern(Locale.getDefault(), "EEEddMMM")
         dateView.text = launcherText(SimpleDateFormat(datePattern, Locale.getDefault()).format(now))
         updateWeather()
+        updateScreenTime()
     }
 
     private fun adaptHomeForWindow() {
@@ -1548,6 +1585,62 @@ class MainActivity : Activity() {
             renderWeatherCoordinateDecision(
                 WeatherLocationPolicy.decide(WeatherLocationMode.APPROXIMATE, true, approximate, manualWeatherCoordinates()),
             )
+        }
+    }
+
+    private fun updateScreenTime(force: Boolean = false) {
+        val view = screenTimeView ?: return
+        if (!preferences.showScreenTime) return
+        if (!screenTimeRepository.hasUsageAccess()) {
+            renderScreenTimeResult(view, ScreenTimeResult.PermissionRequired)
+            return
+        }
+        val now = System.currentTimeMillis()
+        if (screenTimeRequestInFlight || (!force && now - screenTimeRequestedAt < SCREEN_TIME_REFRESH_INTERVAL_MS)) return
+        screenTimeRequestedAt = now
+        screenTimeRequestInFlight = true
+        val generation = ++screenTimeRequestGeneration
+        if (view.text.isNullOrBlank()) view.text = launcherText(getString(R.string.screen_time_loading))
+        screenTimeRepository.load(now) { result ->
+            handler.post {
+                screenTimeRequestInFlight = false
+                if (
+                    !isDestroyed &&
+                    generation == screenTimeRequestGeneration &&
+                    preferences.showScreenTime &&
+                    screenTimeView === view
+                ) {
+                    renderScreenTimeResult(view, result)
+                }
+            }
+        }
+    }
+
+    private fun renderScreenTimeResult(view: TextView, result: ScreenTimeResult) {
+        when (result) {
+            is ScreenTimeResult.Available -> {
+                val compact = ScreenTimeFormatter.compact(result.durationMillis)
+                view.text = launcherText(getString(R.string.screen_time_summary, compact))
+                view.contentDescription =
+                    "Screen on today, ${ScreenTimeFormatter.spoken(result.durationMillis)}. Long press to hide."
+                view.isClickable = false
+                view.isFocusable = false
+                view.setOnClickListener(null)
+            }
+            ScreenTimeResult.PermissionRequired -> {
+                view.text = launcherText(getString(R.string.screen_time_permission_required))
+                view.contentDescription = "Allow usage access to show screen-on time. Long press to hide."
+                view.isClickable = true
+                view.isFocusable = true
+                view.setOnClickListener { openUsageAccessSettings() }
+            }
+            ScreenTimeResult.Unavailable -> {
+                view.text = launcherText(getString(R.string.screen_time_unavailable))
+                view.contentDescription = "Screen-on time is unavailable. Long press to hide."
+                view.isClickable = false
+                view.isFocusable = false
+                view.setOnClickListener(null)
+            }
         }
     }
 
@@ -1640,6 +1733,7 @@ class MainActivity : Activity() {
         }
         dateView.setTextColor(if (localizedDecision.tone == ScrimTone.NONE) secondaryColor else wallpaperSecondaryColor)
         clockPanel.visibility = if (preferences.showBuiltInClock) View.VISIBLE else View.GONE
+        screenTimeView?.setTextColor(wallpaperSecondaryColor)
         root.post(::adaptHomeForWindow)
     }
 
@@ -1664,6 +1758,32 @@ class MainActivity : Activity() {
             }
             .setNegativeButton("cancel", null)
             .show()
+    }
+
+    private fun showScreenTimeActions() {
+        AlertDialog.Builder(this)
+            .setTitle("built-in screen time")
+            .setItems(arrayOf("hide")) { _, _ ->
+                preferences.showScreenTime = false
+                screenTimeRequestGeneration += 1
+                renderWidgets()
+                Toast.makeText(this, "Screen time hidden. Restore it in Home screen settings.", Toast.LENGTH_LONG).show()
+            }
+            .setNegativeButton("cancel", null)
+            .show()
+    }
+
+    private fun openUsageAccessSettings() {
+        val packageUri = Uri.parse("package:$packageName")
+        val detailIntent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS, packageUri)
+        val intent = if (detailIntent.resolveActivity(packageManager) != null) {
+            detailIntent
+        } else {
+            Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
+        }
+        runCatching { startActivity(intent) }.onFailure {
+            Toast.makeText(this, "Usage access settings are unavailable", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun systemWallpaperPrimaryColor(): Int? = runCatching {
@@ -2491,7 +2611,32 @@ class MainActivity : Activity() {
 
     private fun renderWidgets() {
         if (!::widgetContainer.isInitialized) return
+        screenTimeRequestGeneration += 1
+        screenTimeRequestInFlight = false
         widgetContainer.removeAllViews()
+        screenTimeView = null
+        if (preferences.showScreenTime) {
+            screenTimeView = styledText(12f, wallpaperSecondaryColor, mediumTypeface).apply {
+                id = R.id.home_screen_time
+                gravity = Gravity.END or Gravity.CENTER_VERTICAL
+                includeFontPadding = false
+                letterSpacing = 0.04f
+                minHeight = dp(44)
+                setPadding(dp(8), 0, dp(8), dp(8))
+                contentDescription = "Screen-on time today. Long press to hide."
+                isLongClickable = true
+                setOnLongClickListener {
+                    showScreenTimeActions()
+                    true
+                }
+            }
+            widgetContainer.addView(screenTimeView, LinearLayout.LayoutParams(MATCH, WRAP).apply {
+                bottomMargin = dp(4)
+            })
+            updateScreenTime(force = true)
+        } else {
+            screenTimeRequestGeneration += 1
+        }
         val valid = mutableListOf<WidgetPlacement>()
         loadWidgetPlacements().forEach { placement ->
             val id = placement.appWidgetId
@@ -2637,6 +2782,7 @@ class MainActivity : Activity() {
         const val FILTER_TRANSITION_IN_MS = 110L
         const val FILTER_TRANSITION_DIM_ALPHA = 0.18f
         const val WEATHER_REFRESH_INTERVAL_MS = 60 * 60 * 1000L
+        const val SCREEN_TIME_REFRESH_INTERVAL_MS = 30_000L
         const val SETTINGS_BACKGROUND_COLOR = 0xFF0B0B0D.toInt()
         const val SETTINGS_PRIMARY_COLOR = 0xFFF4F4F2.toInt()
         const val SETTINGS_SECONDARY_COLOR = 0xFFA0A09A.toInt()
