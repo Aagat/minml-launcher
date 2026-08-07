@@ -28,7 +28,7 @@ compile SDK is 37.
 
 The generic debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
 The current locally installable release artifact is
-`app/build/outputs/apk/release/minimal-launcher-0.5.1-release-local.apk`.
+`app/build/outputs/apk/release/minimal-launcher-0.6.0-release-local.apk`.
 It is a non-debuggable release build signed with this workstation's Android
 debug certificate for local testing and is not suitable for public
 distribution.
@@ -104,8 +104,14 @@ The emulator process crashed during injected drawer/keyboard input when using
   Sans, Manrope, Space Grotesk, B612, B612 Mono, Android Monospace, or Android
   Sans. Geist Mono remains the default. The bundled font license texts are
   packaged under `assets/licenses`.
+- Text capitalization can remain lowercase, preserve original app/alias/filter
+  capitalization, or use locale-aware uppercase. The setting applies across
+  Home and the drawer without changing the user-entered search query.
 - The drawer header accents only the filter name. Search is left-aligned with a
   muted hint and configurable left margin; app rows remain right-aligned.
+- The search/filter backdrop can use the existing automatic treatment, solid
+  black, full transparency, a wallpaper-derived color, or a custom color. The
+  optional bottom fade blends into the selected backdrop.
 - Auto appearance reacts to Android wallpaper colors while preserving a
   localized clock contrast surface on mixed-brightness wallpaper.
 - Select **Appearance → Background mode → Solid** to replace the wallpaper;
