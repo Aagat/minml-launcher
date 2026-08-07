@@ -72,8 +72,10 @@ The emulator process crashed during injected drawer/keyboard input when using
   approximate device location, with manual fallback and a six-hour stale cache.
 - Auto appearance reacts to Android wallpaper colors while preserving a
   localized clock contrast surface on mixed-brightness wallpaper.
-- Choose Solid under Customization to replace the wallpaper with a saved opaque
-  color; editing the solid background color selects that appearance directly.
+- Toggle **solid background** under Customization to replace or restore the
+  wallpaper; its checked state is shown explicitly. **solid color** edits the
+  saved color without silently enabling it. The Appearance dialog also labels
+  Solid separately from the three wallpaper modes.
 - Long-press an Android widget and choose **remove**. Long-press the built-in
   clock/date and choose **hide**; restore it with **Customization → built-in
   clock/date**.
