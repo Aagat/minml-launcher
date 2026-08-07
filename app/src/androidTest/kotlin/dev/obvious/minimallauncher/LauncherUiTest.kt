@@ -143,10 +143,60 @@ class LauncherUiTest {
         val colorRow = waitForDescriptionContains("Current custom search backdrop")
         assertTrue(colorRow.isEnabled)
         colorRow.click()
+        listOf("color_preset_1", "color_preset_2", "color_preset_3", "color_preset_4", "color_preset_5")
+            .forEach(::waitForResource)
+        waitForResource("color_preset_5").click()
+        waitForDescriptionContains("#F2E8D5")
+        scenario.onActivity { activity ->
+            assertEquals(0xFFF2E8D5.toInt(), preferences(activity).drawerSurfaceColor)
+            assertEquals(LauncherColorPalette.DARK_FONT, preferences(activity).fontColor)
+        }
+
+        waitForDescriptionContains("Current custom search backdrop").click()
+        waitForText("color picker…").click()
+        val picker = waitForResource("visual_color_picker")
+        waitForResource("color_hue_slider")
+        waitForResource("color_saturation_slider")
+        waitForResource("color_brightness_slider")
+        val previewBefore = waitForResource("color_picker_preview").text
+        picker.visibleBounds.let { bounds ->
+            device.click(bounds.left + bounds.width() * 3 / 4, bounds.top + bounds.height() / 3)
+        }
+        assertTrue(eventually { waitForResource("color_picker_preview").text != previewBefore })
+        waitForText(Pattern.compile("(?i)hex code")).click()
         val input = waitForClass("android.widget.EditText")
         input.text = "#5A2148"
         waitForText("SAVE").click()
         waitForDescriptionContains("#5A2148")
+        scenario.onActivity { activity ->
+            assertEquals(0xFF5A2148.toInt(), preferences(activity).drawerSurfaceColor)
+            assertEquals(LauncherColorPalette.LIGHT_FONT, preferences(activity).fontColor)
+        }
+    }
+
+    @Test fun everyColorSettingUsesPresetFirstFlowAndBackgroundPairing() {
+        openSettingsCategory("Appearance")
+
+        waitForText("Font color").click()
+        waitForResource("color_preset_1")
+        waitForResource("color_preset_5")
+        device.pressBack()
+
+        waitForText("Accent color").click()
+        waitForResource("color_preset_2").click()
+        waitForDescriptionContains("#62D9FF")
+
+        waitForText("Background mode").click()
+        waitForText("Solid · selected background color").click()
+        waitForDescriptionContains("Current opaque background").click()
+        waitForResource("color_preset_5").click()
+        waitForDescriptionContains("#F2E8D5")
+        scenario.onActivity { activity ->
+            assertEquals(Appearance.SOLID, preferences(activity).appearance)
+            assertEquals(0xFFF2E8D5.toInt(), preferences(activity).solidBackgroundColor)
+            assertEquals(LauncherColorPalette.DARK_FONT, preferences(activity).fontColor)
+            assertEquals(0xFF62D9FF.toInt(), preferences(activity).accentColor)
+        }
     }
 
     @Test fun drawerGestureSearchFilterAndLaunchFlow() {
