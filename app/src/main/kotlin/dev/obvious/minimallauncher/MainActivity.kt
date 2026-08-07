@@ -476,7 +476,7 @@ class MainActivity : Activity() {
                 body,
                 "Detailed usage",
                 if (usageAccessGranted) {
-                    "Show up to four most-used apps below today's screen-on total"
+                    "Show up to four most-used non-Home apps below today's screen-on total"
                 } else {
                     "Available after Usage Access is allowed"
                 },

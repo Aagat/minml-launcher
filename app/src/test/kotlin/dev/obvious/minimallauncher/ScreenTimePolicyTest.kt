@@ -86,10 +86,18 @@ class ScreenTimePolicyTest {
                     AppUsageDuration("maps.app", 90_000L),
                     AppUsageDuration("system.service", 500_000L),
                     AppUsageDuration("launcher", 800_000L),
+                    AppUsageDuration("other.launcher", 700_000L),
                     AppUsageDuration("unused.app", 0L),
                 ),
-                eligiblePackages = setOf("chat.app", "video.app", "maps.app", "launcher", "unused.app"),
-                excludedPackage = "launcher",
+                eligiblePackages = setOf(
+                    "chat.app",
+                    "video.app",
+                    "maps.app",
+                    "launcher",
+                    "other.launcher",
+                    "unused.app",
+                ),
+                excludedPackages = setOf("launcher", "other.launcher"),
             ),
         )
     }
@@ -98,7 +106,8 @@ class ScreenTimePolicyTest {
         val usage = (1..8).map { AppUsageDuration("app.$it", it * 10_000L) }
         assertEquals(
             listOf("app.8", "app.7", "app.6", "app.5"),
-            DetailedUsagePolicy.rank(usage, usage.map { it.packageName }.toSet(), "launcher").map { it.packageName },
+            DetailedUsagePolicy.rank(usage, usage.map { it.packageName }.toSet(), setOf("launcher"))
+                .map { it.packageName },
         )
     }
 }

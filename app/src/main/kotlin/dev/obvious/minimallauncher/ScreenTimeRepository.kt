@@ -4,6 +4,9 @@ import android.app.AppOpsManager
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.PowerManager
 import android.os.Process
 import java.util.Calendar
@@ -23,11 +26,11 @@ object DetailedUsagePolicy {
     fun rank(
         usage: List<AppUsageDuration>,
         eligiblePackages: Set<String>,
-        excludedPackage: String,
+        excludedPackages: Set<String>,
         limit: Int = 4,
     ): List<AppUsageDuration> = usage
         .asSequence()
-        .filter { it.packageName in eligiblePackages && it.packageName != excludedPackage && it.durationMillis > 0L }
+        .filter { it.packageName in eligiblePackages && it.packageName !in excludedPackages && it.durationMillis > 0L }
         .groupBy { it.packageName }
         .map { (packageName, entries) -> AppUsageDuration(packageName, entries.sumOf { it.durationMillis }) }
         .sortedWith(compareByDescending<AppUsageDuration> { it.durationMillis }.thenBy { it.packageName })
@@ -156,7 +159,7 @@ class ScreenTimeRepository(context: Context) : AutoCloseable {
                                 nowMillis,
                             ).orEmpty().map { AppUsageDuration(it.packageName, it.totalTimeInForeground) },
                             eligiblePackages = detailedUsagePackages,
-                            excludedPackage = applicationContext.packageName,
+                            excludedPackages = homePackages(),
                         )
                     },
                 )
@@ -166,5 +169,19 @@ class ScreenTimeRepository(context: Context) : AutoCloseable {
 
     override fun close() {
         executor.shutdownNow()
+    }
+
+    private fun homePackages(): Set<String> {
+        val homeIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        val matches = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            applicationContext.packageManager.queryIntentActivities(
+                homeIntent,
+                PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_ALL.toLong()),
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            applicationContext.packageManager.queryIntentActivities(homeIntent, PackageManager.MATCH_ALL)
+        }
+        return matches.mapTo(mutableSetOf(applicationContext.packageName)) { it.activityInfo.packageName }
     }
 }
