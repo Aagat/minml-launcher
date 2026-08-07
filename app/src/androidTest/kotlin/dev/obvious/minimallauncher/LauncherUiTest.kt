@@ -159,6 +159,8 @@ class LauncherUiTest {
         assertTrue(eventually { device.currentPackageName != PACKAGE_NAME })
 
         device.pressHome()
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        waitForPackage()
         waitForDescription("Minimal Launcher Home")
         openDrawer()
         val listY = device.displayHeight / 3
