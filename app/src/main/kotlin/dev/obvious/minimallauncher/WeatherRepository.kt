@@ -48,11 +48,36 @@ object WeatherCachePolicy {
     private const val LOCATION_TOLERANCE_DEGREES = 0.1
 }
 
+object WeatherUnitPolicy {
+    private val fahrenheitCountries = setOf("US", "BS", "PW")
+
+    fun resolve(preference: WeatherTemperatureUnit, country: String): WeatherTemperatureUnit = when (preference) {
+        WeatherTemperatureUnit.SYSTEM -> if (country.uppercase(Locale.ROOT) in fahrenheitCountries) {
+            WeatherTemperatureUnit.FAHRENHEIT
+        } else {
+            WeatherTemperatureUnit.CELSIUS
+        }
+        else -> preference
+    }
+
+    fun symbol(unit: WeatherTemperatureUnit): String = when (unit) {
+        WeatherTemperatureUnit.CELSIUS -> "C"
+        WeatherTemperatureUnit.FAHRENHEIT -> "F"
+        WeatherTemperatureUnit.SYSTEM -> error("System temperature unit must be resolved first")
+    }
+}
+
 class WeatherRepository(private val runtime: SharedPreferences) {
     private val executor = Executors.newSingleThreadExecutor()
 
-    fun load(latitude: Double, longitude: Double, callback: (WeatherResult) -> Unit) {
-        val cached = readCache(latitude, longitude)
+    fun load(
+        latitude: Double,
+        longitude: Double,
+        unitPreference: WeatherTemperatureUnit,
+        callback: (WeatherResult) -> Unit,
+    ) {
+        val unit = WeatherUnitPolicy.resolve(unitPreference, Locale.getDefault().country)
+        val cached = readCache(latitude, longitude, WeatherUnitPolicy.symbol(unit))
         val now = System.currentTimeMillis()
         val cacheState = WeatherCachePolicy.state(cached?.fetchedAt, now)
         if (cached != null && cacheState == WeatherCacheState.FRESH) {
@@ -63,7 +88,7 @@ class WeatherRepository(private val runtime: SharedPreferences) {
             callback(WeatherResult.Available(cached, true))
         }
         executor.execute {
-            val fetched = runCatching { fetch(latitude, longitude) }
+            val fetched = runCatching { fetch(latitude, longitude, unit) }
             fetched.onSuccess { snapshot ->
                 writeCache(snapshot, latitude, longitude)
                 callback(WeatherResult.Available(snapshot, false))
@@ -77,8 +102,12 @@ class WeatherRepository(private val runtime: SharedPreferences) {
 
     fun close() = executor.shutdownNow()
 
-    private fun fetch(latitude: Double, longitude: Double): WeatherSnapshot {
-        val fahrenheit = Locale.getDefault().country in setOf("US", "BS", "PW")
+    private fun fetch(
+        latitude: Double,
+        longitude: Double,
+        unit: WeatherTemperatureUnit,
+    ): WeatherSnapshot {
+        val fahrenheit = unit == WeatherTemperatureUnit.FAHRENHEIT
         val unitQuery = if (fahrenheit) "&temperature_unit=fahrenheit" else ""
         val endpoint = "https://api.open-meteo.com/v1/forecast" +
             "?latitude=$latitude&longitude=$longitude" +
@@ -100,7 +129,7 @@ class WeatherRepository(private val runtime: SharedPreferences) {
                 high = daily.getJSONArray("temperature_2m_max").getDouble(0).roundToInt(),
                 low = daily.getJSONArray("temperature_2m_min").getDouble(0).roundToInt(),
                 condition = condition(code),
-                unit = if (fahrenheit) "F" else "C",
+                unit = WeatherUnitPolicy.symbol(unit),
                 fetchedAt = System.currentTimeMillis(),
             )
         } finally {
@@ -121,7 +150,7 @@ class WeatherRepository(private val runtime: SharedPreferences) {
             .apply()
     }
 
-    private fun readCache(latitude: Double, longitude: Double): WeatherSnapshot? {
+    private fun readCache(latitude: Double, longitude: Double, expectedUnit: String): WeatherSnapshot? {
         val fetchedAt = runtime.getLong("weather.fetchedAt", 0L)
         if (fetchedAt == 0L) return null
         if (!WeatherCachePolicy.matchesLocation(
@@ -131,12 +160,14 @@ class WeatherRepository(private val runtime: SharedPreferences) {
                 longitude,
             )
         ) return null
+        val cachedUnit = runtime.getString("weather.unit", "C") ?: "C"
+        if (cachedUnit != expectedUnit) return null
         return WeatherSnapshot(
             temperature = runtime.getInt("weather.temperature", 0),
             high = runtime.getInt("weather.high", 0),
             low = runtime.getInt("weather.low", 0),
             condition = runtime.getString("weather.condition", "") ?: "",
-            unit = runtime.getString("weather.unit", "C") ?: "C",
+            unit = cachedUnit,
             fetchedAt = fetchedAt,
         )
     }

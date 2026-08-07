@@ -22,8 +22,11 @@ import android.os.Looper
 import android.provider.Settings
 import android.text.Editable
 import android.text.InputType
+import android.text.Spannable
+import android.text.SpannableString
 import android.text.TextWatcher
 import android.text.format.DateFormat
+import android.text.style.ForegroundColorSpan
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -380,7 +383,7 @@ class MainActivity : Activity() {
             setOnScrollListener(object : android.widget.AbsListView.OnScrollListener {
                 override fun onScrollStateChanged(view: android.widget.AbsListView?, scrollState: Int) = Unit
                 override fun onScroll(view: android.widget.AbsListView?, first: Int, visible: Int, total: Int) {
-                    updateScrollThumb(first, visible, total)
+                    updateScrollThumb(total)
                 }
             })
         }
@@ -453,8 +456,9 @@ class MainActivity : Activity() {
             id = View.generateViewId()
             hint = "search"
             contentDescription = getString(R.string.search_apps)
-            setHintTextColor(primaryColor)
+            setHintTextColor(secondaryColor)
             setTextColor(primaryColor)
+            gravity = Gravity.START or Gravity.CENTER_VERTICAL
             setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, scaledSp(14f))
             typeface = mediumTypeface
             setSingleLine(true)
@@ -581,8 +585,9 @@ class MainActivity : Activity() {
         filtersScroller.visibility = if (preferences.showFilterBar) View.VISIBLE else View.GONE
         searchFrame.layoutParams = (searchFrame.layoutParams as FrameLayout.LayoutParams).apply {
             width = columnWidth
-            gravity = Gravity.END or Gravity.BOTTOM
-            rightMargin = right + dp(12)
+            gravity = Gravity.START or Gravity.BOTTOM
+            leftMargin = dp(preferences.searchLeftMarginDp)
+            rightMargin = 0
             bottomMargin = dp(6)
         }
         scrollTrack.layoutParams = (scrollTrack.layoutParams as FrameLayout.LayoutParams).apply {
@@ -591,31 +596,46 @@ class MainActivity : Activity() {
             topMargin = listTop
             rightMargin = right + dp(2)
         }
-        updateScrollThumb(appList.firstVisiblePosition, appList.childCount, adapter.count)
+        updateScrollThumb(adapter.count)
     }
 
-    private fun updateScrollThumb(first: Int, visible: Int, total: Int) {
+    private fun updateScrollThumb(total: Int) {
         // ListView dispatches an initial scroll callback synchronously when the
         // listener is attached, before the custom indicator views are added.
         if (!::scrollTrack.isInitialized || !::scrollThumb.isInitialized) return
         val trackParams = scrollTrack.layoutParams as? FrameLayout.LayoutParams ?: return
         val trackHeight = trackParams.height
-        if (total <= visible || total == 0 || trackHeight <= 0) {
+        val firstChild = appList.getChildAt(0)
+        val geometry = if (firstChild == null) null else ScrollIndicatorPolicy.calculate(
+            totalItems = total,
+            firstVisibleItem = appList.firstVisiblePosition,
+            firstChildTop = firstChild.top - appList.paddingTop,
+            rowHeight = firstChild.height,
+            viewportHeight = appList.height - appList.paddingTop - appList.paddingBottom,
+            trackHeight = trackHeight,
+            minimumThumbHeight = dp(30),
+        )
+        if (geometry == null) {
             scrollTrack.visibility = View.GONE
             scrollThumb.visibility = View.GONE
+            scrollThumb.translationY = 0f
             return
         }
         scrollTrack.visibility = View.VISIBLE
         scrollThumb.visibility = View.VISIBLE
-        val thumbHeight = max(dp(30), trackHeight * visible / total)
-        val maxOffset = max(0, trackHeight - thumbHeight)
-        val offset = if (total == visible) 0 else maxOffset * first / max(1, total - visible)
-        scrollThumb.layoutParams = (scrollThumb.layoutParams as FrameLayout.LayoutParams).apply {
-            height = thumbHeight
-            gravity = Gravity.END or Gravity.TOP
-            topMargin = trackParams.topMargin + offset
-            rightMargin = trackParams.rightMargin - dp(1)
+        val thumbParams = scrollThumb.layoutParams as FrameLayout.LayoutParams
+        if (thumbParams.height != geometry.height ||
+            thumbParams.topMargin != trackParams.topMargin ||
+            thumbParams.rightMargin != trackParams.rightMargin - dp(1)
+        ) {
+            scrollThumb.layoutParams = thumbParams.apply {
+                height = geometry.height
+                gravity = Gravity.END or Gravity.TOP
+                topMargin = trackParams.topMargin
+                rightMargin = trackParams.rightMargin - dp(1)
+            }
         }
+        scrollThumb.translationY = geometry.offset
     }
 
     private fun onCatalogChanged(apps: List<AppEntry>) {
@@ -700,12 +720,15 @@ class MainActivity : Activity() {
         if (!::searchInput.isInitialized) return
         val scoped = FilterEngine.apply(allApps, currentFilter, membership(currentFilter))
         visibleApps = AppSearch.rank(scoped, searchInput.text?.toString().orEmpty())
-        drawerHeader.text = getString(
-            R.string.drawer_filter_count,
+        val header = DrawerHeaderPolicy.content(
             currentFilter.displayName.lowercase(Locale.getDefault()),
             scoped.size,
         )
-        drawerHeader.setTextColor(accentColor)
+        drawerHeader.text = SpannableString(header.text).apply {
+            setSpan(ForegroundColorSpan(accentColor), 0, header.accentEnd, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+            setSpan(ForegroundColorSpan(primaryColor), header.accentEnd, length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        drawerHeader.setTextColor(primaryColor)
         adapter.notifyDataSetChanged()
         filtersView.children().forEach { button ->
             val spec = button.tag as FilterSpec
@@ -717,7 +740,7 @@ class MainActivity : Activity() {
             } else null
             button.contentDescription = "${spec.displayName} apps filter${if (active) ", selected" else ""}"
         }
-        appList.post { updateScrollThumb(appList.firstVisiblePosition, appList.childCount, adapter.count) }
+        appList.post { updateScrollThumb(adapter.count) }
     }
 
     private fun setFilter(filter: FilterSpec) {
@@ -824,7 +847,10 @@ class MainActivity : Activity() {
 
     private fun updateClock() {
         val now = Date()
-        val timePattern = if (DateFormat.is24HourFormat(this)) "HH:mm" else "hh:mm"
+        val timePattern = ClockFormatPolicy.pattern(
+            preferences.clockFormat,
+            DateFormat.is24HourFormat(this),
+        )
         timeView.text = SimpleDateFormat(timePattern, Locale.getDefault()).format(now)
         val datePattern = DateFormat.getBestDateTimePattern(Locale.getDefault(), "EEEddMMM")
         dateView.text = SimpleDateFormat(datePattern, Locale.getDefault()).format(now).uppercase(Locale.getDefault())
@@ -914,7 +940,11 @@ class MainActivity : Activity() {
         if (System.currentTimeMillis() - weatherRequestedAt < WEATHER_REFRESH_INTERVAL_MS) return
         weatherRequestedAt = System.currentTimeMillis()
         weatherView.text = getString(R.string.weather_loading)
-        weatherRepository.load(coordinates.latitude, coordinates.longitude) { result ->
+        weatherRepository.load(
+            coordinates.latitude,
+            coordinates.longitude,
+            preferences.weatherTemperatureUnit,
+        ) { result ->
             handler.post {
                 if (!preferences.weatherEnabled) return@post
                 weatherView.text = when (result) {
@@ -1095,6 +1125,24 @@ class MainActivity : Activity() {
             .show()
     }
 
+    private fun showClockFormatEditor() {
+        val choices = arrayOf("System default", "12-hour", "24-hour")
+        AlertDialog.Builder(this)
+            .setTitle("clock format")
+            .setSingleChoiceItems(choices, preferences.clockFormat.ordinal) { dialog, which ->
+                preferences.clockFormat = ClockFormat.entries[which]
+                updateClock()
+                dialog.dismiss()
+            }
+            .show()
+    }
+
+    private fun clockFormatLabel(): String = when (preferences.clockFormat) {
+        ClockFormat.SYSTEM -> "system"
+        ClockFormat.TWELVE_HOUR -> "12-hour"
+        ClockFormat.TWENTY_FOUR_HOUR -> "24-hour"
+    }
+
     private fun showCustomizationMenu() {
         val items = arrayOf(
             "font size · ${preferences.fontScalePercent}%",
@@ -1104,10 +1152,12 @@ class MainActivity : Activity() {
             "solid background · ${if (preferences.appearance == Appearance.SOLID) "✓ on" else "off"}",
             "solid color · ${formatColor(preferences.solidBackgroundColor)}",
             "built-in clock/date · ${if (preferences.showBuiltInClock) "shown" else "hidden"}",
+            "clock format · ${clockFormatLabel()}",
             "keyboard on drawer · ${if (preferences.autoShowKeyboard) "on" else "off"}",
             "filter labels · ${if (preferences.showFilterBar) "shown" else "hidden"}",
             "bottom gradient · ${if (preferences.showDrawerGradient) "on" else "off"}",
             "search underline · ${if (preferences.showSearchUnderline) "on" else "off"}",
+            "search left margin · ${preferences.searchLeftMarginDp} dp",
             "app list margins · ${preferences.appListTopMarginDp} / ${preferences.appListRightMarginDp} dp",
             "status bar · ${if (preferences.hideStatusBar) "hidden" else "shown"}",
         )
@@ -1137,7 +1187,8 @@ class MainActivity : Activity() {
                         preferences.showBuiltInClock = !preferences.showBuiltInClock
                         applyAppearance()
                     }
-                    7 -> {
+                    7 -> showClockFormatEditor()
+                    8 -> {
                         preferences.autoShowKeyboard = !preferences.autoShowKeyboard
                         Toast.makeText(
                             this,
@@ -1145,25 +1196,60 @@ class MainActivity : Activity() {
                             Toast.LENGTH_SHORT,
                         ).show()
                     }
-                    8 -> {
+                    9 -> {
                         preferences.showFilterBar = !preferences.showFilterBar
                         recreate()
                     }
-                    9 -> {
+                    10 -> {
                         preferences.showDrawerGradient = !preferences.showDrawerGradient
                         recreate()
                     }
-                    10 -> {
+                    11 -> {
                         preferences.showSearchUnderline = !preferences.showSearchUnderline
                         recreate()
                     }
-                    11 -> showAppListMarginsEditor()
-                    12 -> {
+                    12 -> showSearchLeftMarginEditor()
+                    13 -> showAppListMarginsEditor()
+                    14 -> {
                         preferences.hideStatusBar = !preferences.hideStatusBar
                         recreate()
                     }
                 }
             }
+            .show()
+    }
+
+    private fun showSearchLeftMarginEditor() {
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(8), dp(24), 0)
+        }
+        val value = styledText(12f, primaryColor, mediumTypeface).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            text = getString(R.string.search_left_margin_value, preferences.searchLeftMarginDp)
+        }
+        val slider = SeekBar(this).apply {
+            max = 64
+            progress = preferences.searchLeftMarginDp
+            contentDescription = "Search left margin"
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    value.text = getString(R.string.search_left_margin_value, progress)
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+        }
+        content.addView(value, LinearLayout.LayoutParams(MATCH, WRAP))
+        content.addView(slider, LinearLayout.LayoutParams(MATCH, WRAP))
+        AlertDialog.Builder(this)
+            .setTitle("search left margin")
+            .setView(content)
+            .setPositiveButton("save") { _, _ ->
+                preferences.searchLeftMarginDp = slider.progress
+                recreate()
+            }
+            .setNegativeButton("cancel", null)
             .show()
     }
 
@@ -1507,6 +1593,36 @@ class MainActivity : Activity() {
             text = getString(R.string.enable_open_meteo_weather)
             isChecked = preferences.weatherEnabled
         }
+        val unitLabel = styledText(11f, secondaryColor, mediumTypeface).apply {
+            text = "temperature unit"
+            setPadding(0, dp(8), 0, 0)
+        }
+        val temperatureUnit = RadioGroup(this).apply { orientation = RadioGroup.VERTICAL }
+        val systemUnitSymbol = WeatherUnitPolicy.symbol(
+            WeatherUnitPolicy.resolve(WeatherTemperatureUnit.SYSTEM, Locale.getDefault().country),
+        )
+        val systemUnit = RadioButton(this).apply {
+            id = View.generateViewId()
+            text = "System default (°$systemUnitSymbol)"
+        }
+        val celsiusUnit = RadioButton(this).apply {
+            id = View.generateViewId()
+            text = "Celsius (°C)"
+        }
+        val fahrenheitUnit = RadioButton(this).apply {
+            id = View.generateViewId()
+            text = "Fahrenheit (°F)"
+        }
+        temperatureUnit.addView(systemUnit)
+        temperatureUnit.addView(celsiusUnit)
+        temperatureUnit.addView(fahrenheitUnit)
+        temperatureUnit.check(
+            when (preferences.weatherTemperatureUnit) {
+                WeatherTemperatureUnit.SYSTEM -> systemUnit.id
+                WeatherTemperatureUnit.CELSIUS -> celsiusUnit.id
+                WeatherTemperatureUnit.FAHRENHEIT -> fahrenheitUnit.id
+            },
+        )
         val disclosure = styledText(11f, secondaryColor, regularTypeface).apply {
             setPadding(0, dp(8), 0, dp(8))
         }
@@ -1546,13 +1662,19 @@ class MainActivity : Activity() {
             inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL or InputType.TYPE_NUMBER_FLAG_SIGNED
         }
         form.addView(enabled)
+        form.addView(unitLabel)
+        form.addView(temperatureUnit)
         form.addView(locationMode)
         form.addView(disclosure)
         form.addView(latitude)
         form.addView(longitude)
+        val formScroller = ScrollView(this).apply {
+            isFillViewport = true
+            addView(form, ViewGroup.LayoutParams(MATCH, WRAP))
+        }
         AlertDialog.Builder(this)
             .setTitle("weather")
-            .setView(form)
+            .setView(formScroller)
             .setPositiveButton("save") { _, _ ->
                 val lat = latitude.text.toString().toDoubleOrNull()
                 val lon = longitude.text.toString().toDoubleOrNull()
@@ -1568,6 +1690,11 @@ class MainActivity : Activity() {
                 } else {
                     preferences.weatherEnabled = enabled.isChecked
                     preferences.weatherLocationMode = mode
+                    preferences.weatherTemperatureUnit = when (temperatureUnit.checkedRadioButtonId) {
+                        celsiusUnit.id -> WeatherTemperatureUnit.CELSIUS
+                        fahrenheitUnit.id -> WeatherTemperatureUnit.FAHRENHEIT
+                        else -> WeatherTemperatureUnit.SYSTEM
+                    }
                     preferences.weatherLatitude = latitude.text.toString().trim()
                     preferences.weatherLongitude = longitude.text.toString().trim()
                     weatherRequestedAt = 0L

@@ -38,6 +38,14 @@ object FilterCatalog {
     }
 }
 
+data class DrawerHeaderContent(val text: String, val accentEnd: Int)
+
+object DrawerHeaderPolicy {
+    fun content(filterName: String, count: Int): DrawerHeaderContent {
+        return DrawerHeaderContent("$filterName/$count", filterName.length)
+    }
+}
+
 object FilterEngine {
     fun apply(
         apps: List<AppEntry>,

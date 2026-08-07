@@ -30,4 +30,11 @@ class FilterEngineTest {
         assertEquals("builtin:all", FilterCatalog.cycle(filters, "custom:focus", 1).id)
         assertEquals("custom:focus", FilterCatalog.cycle(filters, "builtin:all", -1).id)
     }
+
+    @Test fun `drawer header accent range covers only filter name`() {
+        val header = DrawerHeaderPolicy.content("daily", 4)
+        assertEquals("daily/4", header.text)
+        assertEquals("daily", header.text.substring(0, header.accentEnd))
+        assertEquals("/4", header.text.substring(header.accentEnd))
+    }
 }

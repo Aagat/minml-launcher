@@ -5,6 +5,8 @@ import android.content.SharedPreferences
 enum class Appearance { AUTO, TRANSPARENT, GRADIENT, SOLID }
 fun Appearance.toggleSolid(): Appearance = if (this == Appearance.SOLID) Appearance.AUTO else Appearance.SOLID
 enum class WeatherLocationMode { MANUAL, APPROXIMATE }
+enum class WeatherTemperatureUnit { SYSTEM, CELSIUS, FAHRENHEIT }
+enum class ClockFormat { SYSTEM, TWELVE_HOUR, TWENTY_FOUR_HOUR }
 
 interface PreferenceBackend {
     fun getString(key: String, default: String = ""): String
@@ -71,6 +73,19 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
         }.getOrDefault(WeatherLocationMode.MANUAL)
         set(value) = backend.putString(KEY_WEATHER_LOCATION_MODE, value.name)
 
+    var weatherTemperatureUnit: WeatherTemperatureUnit
+        get() = runCatching {
+            WeatherTemperatureUnit.valueOf(
+                backend.getString(KEY_WEATHER_TEMPERATURE_UNIT, WeatherTemperatureUnit.SYSTEM.name),
+            )
+        }.getOrDefault(WeatherTemperatureUnit.SYSTEM)
+        set(value) = backend.putString(KEY_WEATHER_TEMPERATURE_UNIT, value.name)
+
+    var clockFormat: ClockFormat
+        get() = runCatching { ClockFormat.valueOf(backend.getString(KEY_CLOCK_FORMAT, ClockFormat.SYSTEM.name)) }
+            .getOrDefault(ClockFormat.SYSTEM)
+        set(value) = backend.putString(KEY_CLOCK_FORMAT, value.name)
+
     var drawerDismissDistanceSensitivity: Int
         get() = sensitivity(KEY_DRAWER_DISMISS_DISTANCE_SENSITIVITY)
         set(value) = backend.putString(KEY_DRAWER_DISMISS_DISTANCE_SENSITIVITY, value.coerceIn(0, 100).toString())
@@ -135,6 +150,10 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
         get() = storedInt(KEY_APP_LIST_RIGHT_MARGIN, DEFAULT_APP_LIST_RIGHT_MARGIN, 0, 64)
         set(value) = backend.putString(KEY_APP_LIST_RIGHT_MARGIN, value.coerceIn(0, 64).toString())
 
+    var searchLeftMarginDp: Int
+        get() = storedInt(KEY_SEARCH_LEFT_MARGIN, DEFAULT_SEARCH_LEFT_MARGIN, 0, 64)
+        set(value) = backend.putString(KEY_SEARCH_LEFT_MARGIN, value.coerceIn(0, 64).toString())
+
     var hideStatusBar: Boolean
         get() = backend.getBoolean(KEY_HIDE_STATUS_BAR)
         set(value) = backend.putBoolean(KEY_HIDE_STATUS_BAR, value)
@@ -181,6 +200,8 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
         const val KEY_WEATHER_LATITUDE = "weather.latitude"
         const val KEY_WEATHER_LONGITUDE = "weather.longitude"
         const val KEY_WEATHER_LOCATION_MODE = "weather.location_mode"
+        const val KEY_WEATHER_TEMPERATURE_UNIT = "weather.temperature_unit"
+        const val KEY_CLOCK_FORMAT = "customization.clock_format"
         const val KEY_DRAWER_DISMISS_SENSITIVITY = "drawer.dismiss.sensitivity"
         const val KEY_DRAWER_DISMISS_DISTANCE_SENSITIVITY = "drawer.dismiss.distance_sensitivity"
         const val KEY_DRAWER_DISMISS_SPEED_SENSITIVITY = "drawer.dismiss.speed_sensitivity"
@@ -197,11 +218,13 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
         const val KEY_SHOW_SEARCH_UNDERLINE = "customization.show_search_underline"
         const val KEY_APP_LIST_TOP_MARGIN = "customization.app_list_top_margin"
         const val KEY_APP_LIST_RIGHT_MARGIN = "customization.app_list_right_margin"
+        const val KEY_SEARCH_LEFT_MARGIN = "customization.search_left_margin"
         const val KEY_HIDE_STATUS_BAR = "customization.hide_status_bar"
         const val DEFAULT_FONT_COLOR = 0xFFF4F4F2.toInt()
         const val DEFAULT_ACCENT_COLOR = 0xFFB7F36B.toInt()
         const val DEFAULT_SOLID_BACKGROUND_COLOR = 0xFF000000.toInt()
         const val DEFAULT_APP_LIST_TOP_MARGIN = 24
         const val DEFAULT_APP_LIST_RIGHT_MARGIN = 20
+        const val DEFAULT_SEARCH_LEFT_MARGIN = 20
     }
 }
