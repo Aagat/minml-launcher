@@ -28,7 +28,7 @@ compile SDK is 37.
 
 The generic debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
 The current device-tested artifact is
-`app/build/outputs/apk/debug/minimal-launcher-0.1.5-debug.apk`.
+`app/build/outputs/apk/debug/minimal-launcher-0.1.6-debug.apk`.
 
 ## Run
 
@@ -68,6 +68,10 @@ The emulator process crashed during injected drawer/keyboard input when using
   appear exclusively in Work and use an `(w)` suffix in settings lists.
 - Type with the system keyboard; Enter/Go launches the first ranked result.
 - Back dismisses the IME first, then closes the drawer.
+- Optional weather can use manual coordinates or an explicitly granted
+  approximate device location, with manual fallback and a six-hour stale cache.
+- Auto appearance reacts to Android wallpaper colors while preserving a
+  localized clock contrast surface on mixed-brightness wallpaper.
 - Long-press empty Home space to add custom filters and configure favorites,
   font size/color, accent color, automatic keyboard display, filter-label/fade/
   underline visibility, list margins, status bar, appearance, optional weather,
