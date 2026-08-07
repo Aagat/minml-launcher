@@ -28,7 +28,7 @@ compile SDK is 37.
 
 The generic debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
 The current locally installable release artifact is
-`app/build/outputs/apk/release/minimal-launcher-0.7.0-release-local.apk`.
+`app/build/outputs/apk/release/minimal-launcher-0.7.1-release-local.apk`.
 It is a non-debuggable release build signed with this workstation's Android
 debug certificate for local testing and is not suitable for public
 distribution.
@@ -126,7 +126,9 @@ The emulator process crashed during injected drawer/keyboard input when using
   widget for today's screen-on duration. It is off by default and uses Android's
   system Usage Access screen; the launcher reads screen interactive/non-
   interactive events locally and does not upload usage data. Long-press the
-  widget to hide it.
+  widget to hide it. When access is blocked for a sideloaded APK, Home settings
+  shows numbered shortcuts for **App info → Allow restricted settings** and
+  then **Usage Access → Permit usage access**.
 - Typography can use the bundled Geist Mono Nerd Font, Geist, Inter, IBM Plex
   Sans, Manrope, Space Grotesk, B612, B612 Mono, Android Monospace, or Android
   Sans. Geist Mono remains the default. The bundled font license texts are
