@@ -112,9 +112,12 @@ class HomeGestureLayout @JvmOverloads constructor(
                 handler.postDelayed(longPress, ViewConfiguration.getLongPressTimeout().toLong())
             }
             MotionEvent.ACTION_MOVE -> {
-                if (abs(event.x - startX) > touchSlop || abs(event.y - startY) > touchSlop) {
+                val dx = event.x - startX
+                val dy = event.y - startY
+                if (abs(dx) > touchSlop || abs(dy) > touchSlop) {
                     handler.removeCallbacks(longPress)
                 }
+                if (dy < -threshold && abs(dy) > abs(dx) * 1.15f) intercepting = true
             }
             MotionEvent.ACTION_UP -> {
                 handler.removeCallbacks(longPress)
