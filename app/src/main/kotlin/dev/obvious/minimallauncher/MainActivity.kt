@@ -281,7 +281,7 @@ class MainActivity : Activity() {
         })
 
         homeRolePrompt = Button(this).apply {
-            text = "not default home · switch"
+            text = getString(R.string.not_default_home_switch)
             contentDescription = "Minimal Launcher is not the default Home app. Switch Home app."
             gravity = Gravity.END or Gravity.CENTER_VERTICAL
             isAllCaps = false
@@ -318,6 +318,7 @@ class MainActivity : Activity() {
         })
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     private fun buildDrawer() {
         drawer = FilterGestureLayout(this).apply {
             setBackgroundColor(Color.TRANSPARENT)
@@ -647,7 +648,11 @@ class MainActivity : Activity() {
         if (!::searchInput.isInitialized) return
         val scoped = FilterEngine.apply(allApps, currentFilter, membership(currentFilter))
         visibleApps = AppSearch.rank(scoped, searchInput.text?.toString().orEmpty())
-        drawerHeader.text = "${currentFilter.displayName.lowercase(Locale.getDefault())}/${scoped.size}"
+        drawerHeader.text = getString(
+            R.string.drawer_filter_count,
+            currentFilter.displayName.lowercase(Locale.getDefault()),
+            scoped.size,
+        )
         drawerHeader.setTextColor(accentColor)
         adapter.notifyDataSetChanged()
         filtersView.children().forEach { button ->
@@ -973,7 +978,7 @@ class MainActivity : Activity() {
         }
         val topValue = styledText(12f, primaryColor, mediumTypeface).apply {
             gravity = Gravity.CENTER_HORIZONTAL
-            text = "Top margin · ${preferences.appListTopMarginDp} dp"
+            text = getString(R.string.app_list_top_margin_value, preferences.appListTopMarginDp)
         }
         val topSlider = SeekBar(this).apply {
             max = 72
@@ -981,7 +986,7 @@ class MainActivity : Activity() {
             contentDescription = "App list top margin"
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                    topValue.text = "Top margin · ${progress + 24} dp"
+                    topValue.text = getString(R.string.app_list_top_margin_value, progress + 24)
                 }
                 override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
                 override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
@@ -989,7 +994,7 @@ class MainActivity : Activity() {
         }
         val rightValue = styledText(12f, primaryColor, mediumTypeface).apply {
             gravity = Gravity.CENTER_HORIZONTAL
-            text = "Right margin · ${preferences.appListRightMarginDp} dp"
+            text = getString(R.string.app_list_right_margin_value, preferences.appListRightMarginDp)
         }
         val rightSlider = SeekBar(this).apply {
             max = 64
@@ -997,7 +1002,7 @@ class MainActivity : Activity() {
             contentDescription = "App list right margin"
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                    rightValue.text = "Right margin · $progress dp"
+                    rightValue.text = getString(R.string.app_list_right_margin_value, progress)
                 }
                 override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
                 override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
@@ -1026,7 +1031,7 @@ class MainActivity : Activity() {
         }
         val value = styledText(12f, primaryColor, mediumTypeface).apply {
             gravity = Gravity.CENTER_HORIZONTAL
-            text = "Font size · ${preferences.fontScalePercent}%"
+            text = getString(R.string.font_size_value, preferences.fontScalePercent)
         }
         val slider = SeekBar(this).apply {
             max = 75
@@ -1034,7 +1039,7 @@ class MainActivity : Activity() {
             contentDescription = "Launcher font size"
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                    value.text = "Font size · ${progress + 75}%"
+                    value.text = getString(R.string.font_size_value, progress + 75)
                 }
                 override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
                 override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
