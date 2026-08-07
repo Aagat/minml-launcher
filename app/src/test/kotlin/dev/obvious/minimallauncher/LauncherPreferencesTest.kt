@@ -16,6 +16,12 @@ class LauncherPreferencesTest {
             weatherLongitude = "2.1686"
             drawerDismissDistanceSensitivity = 78
             drawerDismissSpeedSensitivity = 84
+            customFilters = listOf(CustomFilter("custom:focus", "Focus"), CustomFilter("custom:focus", "Duplicate"))
+            setCustomMembership("custom:focus", listOf("b", "a"))
+            fontScalePercent = 118
+            fontColor = 0xFF112233.toInt()
+            accentColor = 0xFFABCDEF.toInt()
+            autoShowKeyboard = false
             setMembership(DrawerFilter.DAILY, listOf("b", "a"))
         }
 
@@ -26,6 +32,12 @@ class LauncherPreferencesTest {
         assertEquals("41.3874", restored.weatherLatitude)
         assertEquals(78, restored.drawerDismissDistanceSensitivity)
         assertEquals(84, restored.drawerDismissSpeedSensitivity)
+        assertEquals(listOf(CustomFilter("custom:focus", "Focus")), restored.customFilters)
+        assertEquals(setOf("a", "b"), restored.customMembership("custom:focus"))
+        assertEquals(118, restored.fontScalePercent)
+        assertEquals(0xFF112233.toInt(), restored.fontColor)
+        assertEquals(0xFFABCDEF.toInt(), restored.accentColor)
+        assertFalse(restored.autoShowKeyboard)
         assertEquals(setOf("a", "b"), restored.membership(DrawerFilter.DAILY))
         assertTrue(restored.isMembershipInitialized(DrawerFilter.DAILY))
         assertFalse(restored.isMembershipInitialized(DrawerFilter.WORK))
@@ -46,6 +58,16 @@ class LauncherPreferencesTest {
         preferences.drawerDismissSpeedSensitivity = -20
         assertEquals(100, preferences.drawerDismissDistanceSensitivity)
         assertEquals(0, preferences.drawerDismissSpeedSensitivity)
+    }
+
+    @Test fun `display customization defaults and clamps font scale`() {
+        val preferences = LauncherPreferences(MapBackend())
+        assertEquals(100, preferences.fontScalePercent)
+        assertEquals(0xFFF4F4F2.toInt(), preferences.fontColor)
+        assertEquals(0xFFB7F36B.toInt(), preferences.accentColor)
+        assertTrue(preferences.autoShowKeyboard)
+        preferences.fontScalePercent = 300
+        assertEquals(150, preferences.fontScalePercent)
     }
 
     private class MapBackend : PreferenceBackend {

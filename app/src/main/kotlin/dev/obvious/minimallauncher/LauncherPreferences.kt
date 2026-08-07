@@ -71,6 +71,34 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
         get() = sensitivity(KEY_DRAWER_DISMISS_SPEED_SENSITIVITY)
         set(value) = backend.putString(KEY_DRAWER_DISMISS_SPEED_SENSITIVITY, value.coerceIn(0, 100).toString())
 
+    var customFilters: List<CustomFilter>
+        get() = PreferenceCodec.decode(backend.getString(KEY_CUSTOM_FILTERS)).mapNotNull { encoded ->
+            val values = PreferenceCodec.decode(encoded)
+            val id = values.getOrNull(0).orEmpty()
+            val name = values.getOrNull(1).orEmpty().trim()
+            if (values.size == 2 && id.startsWith("custom:") && name.isNotEmpty()) CustomFilter(id, name) else null
+        }.distinctBy { it.id }
+        set(value) = backend.putString(
+            KEY_CUSTOM_FILTERS,
+            PreferenceCodec.encode(value.distinctBy { it.id }.map { PreferenceCodec.encode(listOf(it.id, it.name.trim())) }),
+        )
+
+    var fontScalePercent: Int
+        get() = backend.getString(KEY_FONT_SCALE, "100").toIntOrNull()?.coerceIn(75, 150) ?: 100
+        set(value) = backend.putString(KEY_FONT_SCALE, value.coerceIn(75, 150).toString())
+
+    var fontColor: Int
+        get() = storedColor(KEY_FONT_COLOR, DEFAULT_FONT_COLOR)
+        set(value) = backend.putString(KEY_FONT_COLOR, encodeColor(value))
+
+    var accentColor: Int
+        get() = storedColor(KEY_ACCENT_COLOR, DEFAULT_ACCENT_COLOR)
+        set(value) = backend.putString(KEY_ACCENT_COLOR, encodeColor(value))
+
+    var autoShowKeyboard: Boolean
+        get() = backend.getBoolean(KEY_AUTO_SHOW_KEYBOARD, true)
+        set(value) = backend.putBoolean(KEY_AUTO_SHOW_KEYBOARD, value)
+
     fun membership(filter: DrawerFilter): Set<String> =
         PreferenceCodec.decode(backend.getString(filterKey(filter))).toSet()
 
@@ -83,12 +111,26 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
     fun isMembershipInitialized(filter: DrawerFilter): Boolean =
         filter == DrawerFilter.ALL || backend.getBoolean(initializedKey(filter))
 
+    fun customMembership(filterId: String): Set<String> =
+        PreferenceCodec.decode(backend.getString(customFilterKey(filterId))).toSet()
+
+    fun setCustomMembership(filterId: String, ids: Collection<String>) {
+        require(filterId.startsWith("custom:"))
+        backend.putString(customFilterKey(filterId), PreferenceCodec.encode(ids.distinct().sorted()))
+    }
+
     private fun filterKey(filter: DrawerFilter) = "filter.${filter.name.lowercase()}.members"
     private fun initializedKey(filter: DrawerFilter) = "filter.${filter.name.lowercase()}.initialized"
+    private fun customFilterKey(filterId: String) = "filter.custom.${filterId.removePrefix("custom:")}.members"
     private fun sensitivity(key: String): Int {
         val legacy = backend.getString(KEY_DRAWER_DISMISS_SENSITIVITY, DEFAULT_DRAWER_DISMISS_SENSITIVITY.toString())
         return backend.getString(key, legacy).toIntOrNull()?.coerceIn(0, 100) ?: DEFAULT_DRAWER_DISMISS_SENSITIVITY
     }
+    private fun storedColor(key: String, default: Int): Int = backend.getString(key, encodeColor(default))
+        .toLongOrNull(16)
+        ?.toInt()
+        ?: default
+    private fun encodeColor(color: Int): String = (color.toLong() and 0xFFFFFFFFL).toString(16).padStart(8, '0')
 
     private companion object {
         const val KEY_FAVORITES = "favorites"
@@ -100,5 +142,12 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
         const val KEY_DRAWER_DISMISS_DISTANCE_SENSITIVITY = "drawer.dismiss.distance_sensitivity"
         const val KEY_DRAWER_DISMISS_SPEED_SENSITIVITY = "drawer.dismiss.speed_sensitivity"
         const val DEFAULT_DRAWER_DISMISS_SENSITIVITY = 65
+        const val KEY_CUSTOM_FILTERS = "filter.custom.categories"
+        const val KEY_FONT_SCALE = "customization.font_scale"
+        const val KEY_FONT_COLOR = "customization.font_color"
+        const val KEY_ACCENT_COLOR = "customization.accent_color"
+        const val KEY_AUTO_SHOW_KEYBOARD = "customization.auto_show_keyboard"
+        const val DEFAULT_FONT_COLOR = 0xFFF4F4F2.toInt()
+        const val DEFAULT_ACCENT_COLOR = 0xFFB7F36B.toInt()
     }
 }

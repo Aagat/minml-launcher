@@ -36,6 +36,7 @@ import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.ScrollView
@@ -45,6 +46,7 @@ import android.widget.Toast
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.UUID
 import kotlin.math.max
 import kotlin.math.min
 
@@ -57,6 +59,7 @@ class MainActivity : Activity() {
     private lateinit var timeView: TextView
     private lateinit var dateView: TextView
     private lateinit var weatherView: TextView
+    private lateinit var homeRolePrompt: Button
     private lateinit var favoritesView: LinearLayout
     private lateinit var widgetContainer: LinearLayout
     private lateinit var drawerHeader: TextView
@@ -65,6 +68,7 @@ class MainActivity : Activity() {
     private lateinit var drawerFade: View
     private lateinit var drawerBottomSurface: View
     private lateinit var filtersView: LinearLayout
+    private lateinit var filtersScroller: HorizontalScrollView
     private lateinit var searchInput: EditText
     private lateinit var scrollTrack: View
     private lateinit var scrollThumb: View
@@ -82,11 +86,16 @@ class MainActivity : Activity() {
     private val adapter = AppListAdapter()
     private var allApps: List<AppEntry> = emptyList()
     private var visibleApps: List<AppEntry> = emptyList()
-    private var currentFilter = DrawerFilter.ALL
+    private var currentFilter = FilterSpec.builtIn(DrawerFilter.ALL)
     private var drawerOpen = false
     private var imeVisible = false
     private var pendingWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
     private var weatherRequestedAt = 0L
+
+    private val primaryColor: Int get() = preferences.fontColor
+    private val secondaryColor: Int get() = withAlpha(preferences.fontColor, 0x88)
+    private val wallpaperSecondaryColor: Int get() = withAlpha(preferences.fontColor, 0xDD)
+    private val accentColor: Int get() = preferences.accentColor
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -117,9 +126,10 @@ class MainActivity : Activity() {
             onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, ::handleBack)
         }
 
-        currentFilter = savedInstanceState?.getString(STATE_FILTER)
-            ?.let { runCatching { DrawerFilter.valueOf(it) }.getOrNull() }
-            ?: DrawerFilter.ALL
+        val restoredFilter = savedInstanceState?.getString(STATE_FILTER).orEmpty()
+        currentFilter = availableFilters().firstOrNull { it.id == restoredFilter }
+            ?: runCatching { DrawerFilter.valueOf(restoredFilter) }.getOrNull()?.let(FilterSpec::builtIn)
+            ?: FilterSpec.builtIn(DrawerFilter.ALL)
         val restoredDrawer = savedInstanceState?.getBoolean(STATE_DRAWER_OPEN, false) == true
         val restoredQuery = savedInstanceState?.getString(STATE_QUERY).orEmpty()
         if (restoredDrawer) openDrawer(seed = restoredQuery)
@@ -137,6 +147,11 @@ class MainActivity : Activity() {
         super.onStart()
         runCatching { appWidgetHost.startListening() }
         renderWidgets()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::homeRolePrompt.isInitialized) updateHomeRolePrompt()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -163,7 +178,7 @@ class MainActivity : Activity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putBoolean(STATE_DRAWER_OPEN, drawerOpen)
-        outState.putString(STATE_FILTER, currentFilter.name)
+        outState.putString(STATE_FILTER, currentFilter.id)
         outState.putString(STATE_QUERY, searchInput.text?.toString().orEmpty())
         super.onSaveInstanceState(outState)
     }
@@ -240,16 +255,16 @@ class MainActivity : Activity() {
             gravity = Gravity.START
             setPadding(dp(16), dp(10), dp(16), dp(12))
         }
-        timeView = styledText(64f, PRIMARY, mediumTypeface).apply {
+        timeView = styledText(64f, primaryColor, mediumTypeface).apply {
             includeFontPadding = false
             letterSpacing = -0.06f
             isSingleLine = true
         }
-        dateView = styledText(10f, SECONDARY, mediumTypeface).apply {
+        dateView = styledText(10f, secondaryColor, mediumTypeface).apply {
             letterSpacing = 0.08f
             isAllCaps = true
         }
-        weatherView = styledText(10f, WALLPAPER_SECONDARY, regularTypeface).apply {
+        weatherView = styledText(10f, wallpaperSecondaryColor, regularTypeface).apply {
             visibility = View.GONE
             setPadding(0, dp(8), 0, 0)
         }
@@ -260,6 +275,24 @@ class MainActivity : Activity() {
             gravity = Gravity.TOP
             setMargins(dp(20), dp(14), dp(12), 0)
         })
+
+        homeRolePrompt = Button(this).apply {
+            text = "not default home · switch"
+            contentDescription = "Minimal Launcher is not the default Home app. Switch Home app."
+            gravity = Gravity.END or Gravity.CENTER_VERTICAL
+            isAllCaps = false
+            typeface = regularTypeface
+            setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, scaledSp(9f))
+            setTextColor(accentColor)
+            setBackgroundColor(Color.TRANSPARENT)
+            setPadding(dp(6), 0, dp(12), 0)
+            setOnClickListener { requestHomeRole() }
+        }
+        home.addView(homeRolePrompt, FrameLayout.LayoutParams(dp(270), dp(48)).apply {
+            gravity = Gravity.TOP or Gravity.END
+            setMargins(0, dp(150), dp(12), 0)
+        })
+        updateHomeRolePrompt()
 
         widgetContainer = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -317,7 +350,7 @@ class MainActivity : Activity() {
         }
         drawer.addView(appList, FrameLayout.LayoutParams(dp(300), dp(300)).apply { gravity = Gravity.END })
 
-        emptyState = styledText(12f, SECONDARY, regularTypeface).apply {
+        emptyState = styledText(12f, secondaryColor, regularTypeface).apply {
             text = getString(R.string.no_matching_apps)
             gravity = Gravity.END or Gravity.TOP
             setPadding(0, dp(32), dp(22), 0)
@@ -340,14 +373,14 @@ class MainActivity : Activity() {
         }
         drawer.addView(drawerFade, FrameLayout.LayoutParams(MATCH, dp(56)).apply { gravity = Gravity.BOTTOM })
 
-        drawerHeader = styledText(8f, PRIMARY, mediumTypeface).apply {
+        drawerHeader = styledText(8f, primaryColor, mediumTypeface).apply {
             gravity = Gravity.END
             letterSpacing = 0.08f
         }
         drawer.addView(drawerHeader, FrameLayout.LayoutParams(dp(300), dp(24)).apply { gravity = Gravity.END })
 
         scrollTrack = View(this).apply { setBackgroundColor(0x6620201F) }
-        scrollThumb = View(this).apply { setBackgroundColor(ACCENT) }
+        scrollThumb = View(this).apply { setBackgroundColor(accentColor) }
         drawer.addView(scrollTrack, FrameLayout.LayoutParams(dp(1), dp(200)).apply { gravity = Gravity.END })
         drawer.addView(scrollThumb, FrameLayout.LayoutParams(dp(3), dp(36)).apply { gravity = Gravity.END })
 
@@ -355,31 +388,24 @@ class MainActivity : Activity() {
             gravity = Gravity.END or Gravity.CENTER_VERTICAL
             orientation = LinearLayout.HORIZONTAL
         }
-        DrawerFilter.entries.forEach { filter ->
-            filtersView.addView(Button(this).apply {
-                tag = filter
-                text = filter.displayName
-                contentDescription = "${filter.displayName} apps filter"
-                isAllCaps = false
-                typeface = regularTypeface
-                textSize = 9f
-                minHeight = dp(48)
-                minWidth = dp(48)
-                minimumHeight = dp(48)
-                minimumWidth = dp(48)
-                setPadding(dp(4), 0, dp(4), 0)
-                setBackgroundColor(Color.TRANSPARENT)
-                setOnClickListener { setFilter(filter) }
-            }, LinearLayout.LayoutParams(WRAP, dp(48)))
+        filtersScroller = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            isFillViewport = true
+            setOnTouchListener { view, event ->
+                view.parent?.requestDisallowInterceptTouchEvent(event.actionMasked != MotionEvent.ACTION_UP && event.actionMasked != MotionEvent.ACTION_CANCEL)
+                false
+            }
+            addView(filtersView, FrameLayout.LayoutParams(WRAP, MATCH).apply { gravity = Gravity.END })
         }
-        drawer.addView(filtersView, FrameLayout.LayoutParams(dp(300), dp(48)).apply { gravity = Gravity.END or Gravity.BOTTOM })
+        rebuildFilterButtons()
+        drawer.addView(filtersScroller, FrameLayout.LayoutParams(dp(300), dp(48)).apply { gravity = Gravity.END or Gravity.BOTTOM })
 
         val searchFrame = FrameLayout(this)
         val searchRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        searchRow.addView(styledText(12f, ACCENT, mediumTypeface).apply {
+        searchRow.addView(styledText(12f, accentColor, mediumTypeface).apply {
             text = ">"
             gravity = Gravity.CENTER
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
@@ -387,9 +413,9 @@ class MainActivity : Activity() {
         searchInput = EditText(this).apply {
             hint = "search"
             contentDescription = getString(R.string.search_apps)
-            setHintTextColor(PRIMARY)
-            setTextColor(PRIMARY)
-            setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14f)
+            setHintTextColor(primaryColor)
+            setTextColor(primaryColor)
+            setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, scaledSp(14f))
             typeface = mediumTypeface
             setSingleLine(true)
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
@@ -414,8 +440,33 @@ class MainActivity : Activity() {
         }
         searchRow.addView(searchInput, LinearLayout.LayoutParams(0, MATCH, 1f))
         searchFrame.addView(searchRow, FrameLayout.LayoutParams(MATCH, MATCH))
-        searchFrame.addView(View(this).apply { setBackgroundColor(ACCENT) }, FrameLayout.LayoutParams(MATCH, dp(1)).apply { gravity = Gravity.BOTTOM })
+        searchFrame.addView(View(this).apply { setBackgroundColor(accentColor) }, FrameLayout.LayoutParams(MATCH, dp(1)).apply { gravity = Gravity.BOTTOM })
         drawer.addView(searchFrame, FrameLayout.LayoutParams(dp(300), dp(48)).apply { gravity = Gravity.END or Gravity.BOTTOM })
+    }
+
+    private fun rebuildFilterButtons() {
+        if (!::filtersView.isInitialized) return
+        val filters = availableFilters()
+        if (filters.none { it.id == currentFilter.id }) currentFilter = FilterSpec.builtIn(DrawerFilter.ALL)
+        filtersView.removeAllViews()
+        filters.forEach { filter ->
+            filtersView.addView(Button(this).apply {
+                tag = filter
+                text = filter.displayName
+                contentDescription = "${filter.displayName} apps filter"
+                isAllCaps = false
+                typeface = regularTypeface
+                setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, scaledSp(9f))
+                minHeight = dp(48)
+                minWidth = dp(48)
+                minimumHeight = dp(48)
+                minimumWidth = dp(48)
+                setPadding(dp(4), 0, dp(4), 0)
+                setBackgroundColor(Color.TRANSPARENT)
+                setOnClickListener { setFilter(filter) }
+            }, LinearLayout.LayoutParams(WRAP, dp(48)))
+        }
+        filtersScroller.post { filtersScroller.scrollTo(0, 0) }
     }
 
     private fun positionDrawerChildren() {
@@ -459,7 +510,7 @@ class MainActivity : Activity() {
             gravity = Gravity.BOTTOM
             bottomMargin = controlsHeight
         }
-        filtersView.layoutParams = (filtersView.layoutParams as FrameLayout.LayoutParams).apply {
+        filtersScroller.layoutParams = (filtersScroller.layoutParams as FrameLayout.LayoutParams).apply {
             width = columnWidth
             gravity = Gravity.END or Gravity.BOTTOM
             rightMargin = right
@@ -550,8 +601,12 @@ class MainActivity : Activity() {
         renderFavorites()
     }
 
-    private fun memberships(): Map<DrawerFilter, Set<String>> = DrawerFilter.entries.associateWith { filter ->
-        if (filter == DrawerFilter.ALL) allApps.mapTo(mutableSetOf()) { it.stableId } else preferences.membership(filter)
+    private fun availableFilters(): List<FilterSpec> = FilterCatalog.available(preferences.customFilters)
+
+    private fun membership(filter: FilterSpec): Set<String> = when (val builtIn = filter.builtIn) {
+        DrawerFilter.ALL, DrawerFilter.WORK -> emptySet()
+        DrawerFilter.DAILY, DrawerFilter.MEDIA -> preferences.membership(builtIn)
+        null -> preferences.customMembership(filter.id)
     }
 
     private fun renderFavorites() {
@@ -564,8 +619,8 @@ class MainActivity : Activity() {
                 gravity = Gravity.END or Gravity.CENTER_VERTICAL
                 isAllCaps = false
                 typeface = mediumTypeface
-                textSize = 16f
-                setTextColor(PRIMARY)
+                setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, scaledSp(16f))
+                setTextColor(primaryColor)
                 setBackgroundColor(Color.TRANSPARENT)
                 minHeight = dp(48)
                 minimumHeight = dp(48)
@@ -581,28 +636,29 @@ class MainActivity : Activity() {
 
     private fun renderDrawer() {
         if (!::searchInput.isInitialized) return
-        val scoped = FilterEngine.apply(allApps, currentFilter, memberships())
+        val scoped = FilterEngine.apply(allApps, currentFilter, membership(currentFilter))
         visibleApps = AppSearch.rank(scoped, searchInput.text?.toString().orEmpty())
         drawerHeader.text = if (scoped.size >= 24) "apps / ${scoped.size}" else "apps"
         adapter.notifyDataSetChanged()
         filtersView.children().forEach { button ->
-            val active = button.tag == currentFilter
-            (button as TextView).setTextColor(if (active) ACCENT else SECONDARY)
+            val spec = button.tag as FilterSpec
+            val active = spec.id == currentFilter.id
+            (button as TextView).setTextColor(if (active) accentColor else secondaryColor)
             button.isSelected = active
-            button.contentDescription = "${(button.tag as DrawerFilter).displayName} apps filter${if (active) ", selected" else ""}"
+            button.contentDescription = "${spec.displayName} apps filter${if (active) ", selected" else ""}"
         }
         appList.post { updateScrollThumb(appList.firstVisiblePosition, appList.childCount, adapter.count) }
     }
 
-    private fun setFilter(filter: DrawerFilter) {
-        if (currentFilter == filter) return
+    private fun setFilter(filter: FilterSpec) {
+        if (currentFilter.id == filter.id) return
         currentFilter = filter
         appList.setSelection(0)
         renderDrawer()
         filtersView.announceForAccessibility("${filter.displayName} filter")
     }
 
-    private fun cycleFilter(step: Int) = setFilter(currentFilter.cycle(step))
+    private fun cycleFilter(step: Int) = setFilter(FilterCatalog.cycle(availableFilters(), currentFilter.id, step))
 
     private fun openDrawer(seed: String = "") {
         drawerOpen = true
@@ -615,6 +671,7 @@ class MainActivity : Activity() {
             positionDrawerChildren()
             searchInput.requestFocus()
             searchInput.setSelection(searchInput.length())
+            if (!preferences.autoShowKeyboard) return@post
             searchInput.postDelayed({
                 if (!drawerOpen) return@postDelayed
                 if (android.os.Build.VERSION.SDK_INT >= 30) {
@@ -630,7 +687,7 @@ class MainActivity : Activity() {
         getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(searchInput.windowToken, 0)
         searchInput.clearFocus()
         searchInput.setText("")
-        currentFilter = DrawerFilter.ALL
+        currentFilter = FilterSpec.builtIn(DrawerFilter.ALL)
         drawerOpen = false
         drawer.visibility = View.GONE
         home.visibility = View.VISIBLE
@@ -707,7 +764,7 @@ class MainActivity : Activity() {
     private fun adaptHomeForWindow() {
         if (!::timeView.isInitialized || root.width == 0 || root.height == 0) return
         val landscape = root.width > root.height
-        timeView.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, if (landscape) 44f else 64f)
+        timeView.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, scaledSp(if (landscape) 44f else 64f))
         (favoritesView.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
             params.bottomMargin = dp(if (landscape) 12 else 92)
             favoritesView.layoutParams = params
@@ -766,17 +823,16 @@ class MainActivity : Activity() {
             GradientDrawable.Orientation.LEFT_RIGHT,
             intArrayOf(0xD9000000.toInt(), 0x99000000.toInt(), 0x33000000),
         ).apply { cornerRadius = dp(8).toFloat() }
-        dateView.setTextColor(if (appearance == Appearance.TRANSPARENT) SECONDARY else WALLPAPER_SECONDARY)
+        dateView.setTextColor(if (appearance == Appearance.TRANSPARENT) secondaryColor else wallpaperSecondaryColor)
     }
 
     private fun showLauncherSettings() {
         val items = arrayOf(
-            "default home · system",
             "add widget · system",
             "favorites",
             "filters",
+            "customization",
             "drawer dismissal · ${preferences.drawerDismissDistanceSensitivity}% / ${preferences.drawerDismissSpeedSensitivity}%",
-            "appearance · ${preferences.appearance.name.lowercase()}",
             "weather · ${if (preferences.weatherEnabled) "on" else "off"}",
             "permissions · system",
             "app details · system",
@@ -785,30 +841,35 @@ class MainActivity : Activity() {
             .setTitle("launcher settings")
             .setItems(items) { _, which ->
                 when (which) {
-                    0 -> requestHomeRole()
-                    1 -> pickWidget()
-                    2 -> showFavoriteEditor()
-                    3 -> showFilterEditor()
+                    0 -> pickWidget()
+                    1 -> showFavoriteEditor()
+                    2 -> showFilterEditor()
+                    3 -> showCustomizationMenu()
                     4 -> showDismissSensitivityEditor()
-                    5 -> showAppearanceEditor()
-                    6 -> showWeatherEditor()
-                    7, 8 -> openAppDetails()
+                    5 -> showWeatherEditor()
+                    6, 7 -> openAppDetails()
                 }
             }
             .setNegativeButton("close", null)
             .show()
     }
 
+    private fun updateHomeRolePrompt() {
+        val roleManager = getSystemService(RoleManager::class.java)
+        homeRolePrompt.visibility = if (roleManager.isRoleAvailable(RoleManager.ROLE_HOME) && roleManager.isRoleHeld(RoleManager.ROLE_HOME)) {
+            View.GONE
+        } else {
+            View.VISIBLE
+        }
+    }
+
     private fun requestHomeRole() {
         val roleManager = getSystemService(RoleManager::class.java)
-        val intent = if (roleManager.isRoleAvailable(RoleManager.ROLE_HOME) && !roleManager.isRoleHeld(RoleManager.ROLE_HOME)) {
-            roleManager.createRequestRoleIntent(RoleManager.ROLE_HOME)
-        } else {
-            Intent(Settings.ACTION_HOME_SETTINGS)
-        }
-        runCatching { startActivity(intent) }.onFailure {
-            Toast.makeText(this, "Default Home settings are unavailable", Toast.LENGTH_SHORT).show()
-        }
+        val settingsIntent = Intent(Settings.ACTION_HOME_SETTINGS)
+        runCatching { startActivity(settingsIntent) }.recoverCatching {
+            if (roleManager.isRoleAvailable(RoleManager.ROLE_HOME)) startActivity(roleManager.createRequestRoleIntent(RoleManager.ROLE_HOME))
+            else throw it
+        }.onFailure { Toast.makeText(this, "Default Home settings are unavailable", Toast.LENGTH_SHORT).show() }
     }
 
     private fun openAppDetails() {
@@ -827,12 +888,99 @@ class MainActivity : Activity() {
             .show()
     }
 
+    private fun showCustomizationMenu() {
+        val items = arrayOf(
+            "font size · ${preferences.fontScalePercent}%",
+            "font color · ${formatColor(preferences.fontColor)}",
+            "accent color · ${formatColor(preferences.accentColor)}",
+            "appearance · ${preferences.appearance.name.lowercase()}",
+            "keyboard on drawer · ${if (preferences.autoShowKeyboard) "on" else "off"}",
+        )
+        AlertDialog.Builder(this)
+            .setTitle("customization")
+            .setItems(items) { _, which ->
+                when (which) {
+                    0 -> showFontSizeEditor()
+                    1 -> showColorEditor(accent = false)
+                    2 -> showColorEditor(accent = true)
+                    3 -> showAppearanceEditor()
+                    4 -> {
+                        preferences.autoShowKeyboard = !preferences.autoShowKeyboard
+                        Toast.makeText(
+                            this,
+                            "Automatic keyboard ${if (preferences.autoShowKeyboard) "enabled" else "disabled"}",
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    }
+                }
+            }
+            .show()
+    }
+
+    private fun showFontSizeEditor() {
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(8), dp(24), 0)
+        }
+        val value = styledText(12f, primaryColor, mediumTypeface).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            text = "Font size · ${preferences.fontScalePercent}%"
+        }
+        val slider = SeekBar(this).apply {
+            max = 75
+            progress = preferences.fontScalePercent - 75
+            contentDescription = "Launcher font size"
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    value.text = "Font size · ${progress + 75}%"
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+        }
+        content.addView(value, LinearLayout.LayoutParams(MATCH, WRAP))
+        content.addView(slider, LinearLayout.LayoutParams(MATCH, WRAP))
+        AlertDialog.Builder(this)
+            .setTitle("font size")
+            .setView(content)
+            .setPositiveButton("save") { _, _ ->
+                preferences.fontScalePercent = slider.progress + 75
+                recreate()
+            }
+            .setNegativeButton("cancel", null)
+            .show()
+    }
+
+    private fun showColorEditor(accent: Boolean) {
+        val input = EditText(this).apply {
+            hint = "#RRGGBB"
+            setSingleLine(true)
+            setText(formatColor(if (accent) preferences.accentColor else preferences.fontColor))
+            setSelection(length())
+        }
+        AlertDialog.Builder(this)
+            .setTitle(if (accent) "accent color" else "font color")
+            .setView(input)
+            .setPositiveButton("save") { _, _ ->
+                val parsed = runCatching { Color.parseColor(input.text.toString().trim()) }.getOrNull()
+                if (parsed == null) {
+                    Toast.makeText(this, "Use a color such as #B7F36B", Toast.LENGTH_SHORT).show()
+                } else {
+                    val opaque = parsed or 0xFF000000.toInt()
+                    if (accent) preferences.accentColor = opaque else preferences.fontColor = opaque
+                    recreate()
+                }
+            }
+            .setNegativeButton("cancel", null)
+            .show()
+    }
+
     private fun showDismissSensitivityEditor() {
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(24), dp(8), dp(24), 0)
         }
-        val distanceValue = styledText(12f, PRIMARY, mediumTypeface).apply {
+        val distanceValue = styledText(12f, primaryColor, mediumTypeface).apply {
             gravity = Gravity.CENTER_HORIZONTAL
             text = getString(R.string.drawer_dismiss_distance_value, preferences.drawerDismissDistanceSensitivity)
         }
@@ -849,7 +997,7 @@ class MainActivity : Activity() {
                 override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
             })
         }
-        val speedValue = styledText(12f, PRIMARY, mediumTypeface).apply {
+        val speedValue = styledText(12f, primaryColor, mediumTypeface).apply {
             gravity = Gravity.CENTER_HORIZONTAL
             text = getString(R.string.drawer_dismiss_speed_value, preferences.drawerDismissSpeedSensitivity)
         }
@@ -866,7 +1014,7 @@ class MainActivity : Activity() {
                 override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
             })
         }
-        val guidance = styledText(10f, SECONDARY, regularTypeface).apply {
+        val guidance = styledText(10f, secondaryColor, regularTypeface).apply {
             gravity = Gravity.CENTER_HORIZONTAL
             text = getString(R.string.drawer_dismiss_sensitivity_guidance)
         }
@@ -931,16 +1079,77 @@ class MainActivity : Activity() {
     }
 
     private fun showFilterEditor() {
-        val editable = arrayOf(DrawerFilter.DAILY, DrawerFilter.MEDIA)
+        val custom = preferences.customFilters
+        val labels = listOf("add category", DrawerFilter.DAILY.displayName, DrawerFilter.MEDIA.displayName) +
+            custom.map { "${it.name} · custom" }
         AlertDialog.Builder(this)
             .setTitle("edit filter")
-            .setItems(editable.map { it.displayName }.toTypedArray()) { _, which -> showMembershipEditor(editable[which]) }
+            .setItems(labels.toTypedArray()) { _, which ->
+                when (which) {
+                    0 -> showCustomFilterNameEditor(null)
+                    1 -> showMembershipEditor(FilterSpec.builtIn(DrawerFilter.DAILY))
+                    2 -> showMembershipEditor(FilterSpec.builtIn(DrawerFilter.MEDIA))
+                    else -> showCustomFilterActions(custom[which - 3])
+                }
+            }
             .show()
     }
 
-    private fun showMembershipEditor(filter: DrawerFilter) {
+    private fun showCustomFilterNameEditor(existing: CustomFilter?) {
+        val name = EditText(this).apply {
+            hint = "category name"
+            setSingleLine(true)
+            setText(existing?.name.orEmpty())
+            setSelection(length())
+        }
+        AlertDialog.Builder(this)
+            .setTitle(if (existing == null) "new filter category" else "rename filter category")
+            .setView(name)
+            .setPositiveButton("save") { _, _ ->
+                val value = name.text.toString().trim().take(18)
+                if (value.isEmpty()) {
+                    Toast.makeText(this, "Category name cannot be empty", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                val filters = preferences.customFilters.toMutableList()
+                val saved = if (existing == null) {
+                    CustomFilter("custom:${UUID.randomUUID()}", value).also(filters::add)
+                } else {
+                    existing.copy(name = value).also { updated ->
+                        val index = filters.indexOfFirst { it.id == existing.id }
+                        if (index >= 0) filters[index] = updated
+                    }
+                }
+                preferences.customFilters = filters
+                rebuildFilterButtons()
+                renderDrawer()
+                if (existing == null) showMembershipEditor(FilterSpec.custom(saved))
+            }
+            .setNegativeButton("cancel", null)
+            .show()
+    }
+
+    private fun showCustomFilterActions(filter: CustomFilter) {
+        AlertDialog.Builder(this)
+            .setTitle(filter.name)
+            .setItems(arrayOf("edit apps", "rename", "delete")) { _, which ->
+                when (which) {
+                    0 -> showMembershipEditor(FilterSpec.custom(filter))
+                    1 -> showCustomFilterNameEditor(filter)
+                    2 -> {
+                        preferences.customFilters = preferences.customFilters.filterNot { it.id == filter.id }
+                        if (currentFilter.id == filter.id) currentFilter = FilterSpec.builtIn(DrawerFilter.ALL)
+                        rebuildFilterButtons()
+                        renderDrawer()
+                    }
+                }
+            }
+            .show()
+    }
+
+    private fun showMembershipEditor(filter: FilterSpec) {
         val eligibleApps = allApps.filterNot { it.isWorkProfile }
-        val selected = preferences.membership(filter).toMutableSet()
+        val selected = membership(filter).toMutableSet()
         val checked = BooleanArray(eligibleApps.size) { eligibleApps[it].stableId in selected }
         AlertDialog.Builder(this)
             .setTitle("${filter.displayName} apps")
@@ -948,7 +1157,9 @@ class MainActivity : Activity() {
                 if (enabled) selected += eligibleApps[which].stableId else selected -= eligibleApps[which].stableId
             }
             .setPositiveButton("save") { _, _ ->
-                preferences.setMembership(filter, selected)
+                val builtIn = filter.builtIn
+                if (builtIn == null) preferences.setCustomMembership(filter.id, selected)
+                else preferences.setMembership(builtIn, selected)
                 renderDrawer()
             }
             .setNegativeButton("cancel", null)
@@ -966,7 +1177,7 @@ class MainActivity : Activity() {
             text = getString(R.string.enable_open_meteo_weather)
             isChecked = preferences.weatherEnabled
         }
-        val disclosure = styledText(11f, SECONDARY, regularTypeface).apply {
+        val disclosure = styledText(11f, secondaryColor, regularTypeface).apply {
             text = getString(R.string.weather_manual_disclosure)
             setPadding(0, dp(8), 0, dp(8))
         }
@@ -1115,10 +1326,16 @@ class MainActivity : Activity() {
     }
 
     private fun styledText(sizeSp: Float, color: Int, face: Typeface): TextView = TextView(this).apply {
-        setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, sizeSp)
+        setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, scaledSp(sizeSp))
         setTextColor(color)
         typeface = face
     }
+
+    private fun scaledSp(base: Float): Float = base * preferences.fontScalePercent / 100f
+
+    private fun withAlpha(color: Int, alpha: Int): Int = Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
+
+    private fun formatColor(color: Int): String = String.format(Locale.ROOT, "#%06X", color and 0xFFFFFF)
 
     private fun LinearLayout.children(): Sequence<View> = sequence {
         for (index in 0 until childCount) yield(getChildAt(index))
@@ -1135,8 +1352,8 @@ class MainActivity : Activity() {
         override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
             val view = (convertView as? TextView) ?: TextView(this@MainActivity).apply {
                 gravity = Gravity.END or Gravity.CENTER_VERTICAL
-                setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14f)
-                setTextColor(PRIMARY)
+                setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, scaledSp(14f))
+                setTextColor(primaryColor)
                 typeface = mediumTypeface
                 minHeight = dp(48)
                 setPadding(dp(8), 0, dp(8), 0)
@@ -1164,9 +1381,5 @@ class MainActivity : Activity() {
         const val IME_SHOW_DELAY_MS = 120L
         const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
         const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
-        const val PRIMARY = 0xFFF4F4F2.toInt()
-        const val SECONDARY = 0xFF7D7D7A.toInt()
-        const val WALLPAPER_SECONDARY = 0xFFD8D8D8.toInt()
-        const val ACCENT = 0xFFB7F36B.toInt()
     }
 }
