@@ -224,6 +224,7 @@ class MainActivity : Activity() {
 
     private fun buildUi() {
         root = FrameLayout(this).apply {
+            id = R.id.launcher_root
             setBackgroundColor(Color.TRANSPARENT)
             isFocusableInTouchMode = true
             addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
@@ -271,6 +272,7 @@ class MainActivity : Activity() {
 
     private fun buildSettingsLayer() {
         settingsLayer = FrameLayout(this).apply {
+            id = R.id.launcher_settings
             setBackgroundColor(SETTINGS_BACKGROUND_COLOR)
             isClickable = true
             isFocusable = true
@@ -724,6 +726,7 @@ class MainActivity : Activity() {
 
     private fun buildHome() {
         home = HomeGestureLayout(this).apply {
+            id = R.id.launcher_home
             setBackgroundColor(Color.TRANSPARENT)
             contentDescription = "Minimal Launcher Home"
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
@@ -820,6 +823,7 @@ class MainActivity : Activity() {
     @SuppressLint("ClickableViewAccessibility")
     private fun buildDrawer() {
         drawer = FilterGestureLayout(this).apply {
+            id = R.id.launcher_drawer
             setBackgroundColor(Color.TRANSPARENT)
             clipToPadding = false
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
@@ -833,7 +837,7 @@ class MainActivity : Activity() {
         }
 
         appList = ListView(this).apply {
-            id = View.generateViewId()
+            id = R.id.drawer_app_list
             adapter = this@MainActivity.adapter
             contentDescription = getString(R.string.apps_list)
             divider = null
@@ -869,12 +873,14 @@ class MainActivity : Activity() {
         appList.emptyView = emptyState
 
         drawerBottomSurface = View(this).apply {
+            id = R.id.drawer_bottom_surface
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
             setBackgroundColor(Color.BLACK)
         }
         drawer.addView(drawerBottomSurface, FrameLayout.LayoutParams(MATCH, dp(102)).apply { gravity = Gravity.BOTTOM })
 
         drawerFade = View(this).apply {
+            id = R.id.drawer_fade
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
             background = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
@@ -884,7 +890,7 @@ class MainActivity : Activity() {
         drawer.addView(drawerFade, FrameLayout.LayoutParams(MATCH, dp(56)).apply { gravity = Gravity.BOTTOM })
 
         drawerHeader = styledText(8f, primaryColor, mediumTypeface).apply {
-            id = View.generateViewId()
+            id = R.id.drawer_header
             gravity = Gravity.END
             letterSpacing = 0.08f
             isAccessibilityHeading = true
@@ -897,6 +903,7 @@ class MainActivity : Activity() {
         drawer.addView(scrollThumb, FrameLayout.LayoutParams(dp(3), dp(36)).apply { gravity = Gravity.END })
 
         filtersView = LinearLayout(this).apply {
+            id = R.id.drawer_filters
             gravity = Gravity.END or Gravity.CENTER_VERTICAL
             orientation = LinearLayout.HORIZONTAL
         }
@@ -923,7 +930,7 @@ class MainActivity : Activity() {
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         }, LinearLayout.LayoutParams(dp(36), MATCH))
         searchInput = EditText(this).apply {
-            id = View.generateViewId()
+            id = R.id.drawer_search
             hint = launcherText(getString(R.string.search_hint))
             contentDescription = getString(R.string.search_apps)
             setHintTextColor(secondaryColor)

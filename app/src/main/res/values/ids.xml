@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="launcher_root" type="id" />
+    <item name="launcher_home" type="id" />
+    <item name="launcher_drawer" type="id" />
+    <item name="drawer_app_list" type="id" />
+    <item name="drawer_header" type="id" />
+    <item name="drawer_bottom_surface" type="id" />
+    <item name="drawer_fade" type="id" />
+    <item name="drawer_filters" type="id" />
+    <item name="drawer_search" type="id" />
+    <item name="launcher_settings" type="id" />
+</resources>
