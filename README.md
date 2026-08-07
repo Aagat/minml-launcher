@@ -28,7 +28,7 @@ compile SDK is 37.
 
 The generic debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
 The current packaged artifact is
-`app/build/outputs/apk/debug/minimal-launcher-0.4.2-debug.apk`.
+`app/build/outputs/apk/debug/minimal-launcher-0.5.0-debug.apk`.
 
 ## Run
 
@@ -86,8 +86,10 @@ The emulator process crashed during injected drawer/keyboard input when using
   directly as rows in Home screen settings; only coordinate text entry uses a
   focused dialog.
 - Clock format can follow Android or be forced to 12-hour or 24-hour display.
-- Typography can use the bundled Geist Mono Nerd Font, Android Monospace, or
-  Android Sans. Geist Mono remains the default.
+- Typography can use the bundled Geist Mono Nerd Font, Geist, Inter, IBM Plex
+  Sans, Space Grotesk, Android Monospace, or Android Sans. Geist Mono remains
+  the default. The bundled font license texts are packaged under
+  `assets/licenses`.
 - The drawer header accents only the filter name. Search is left-aligned with a
   muted hint and configurable left margin; app rows remain right-aligned.
 - Auto appearance reacts to Android wallpaper colors while preserving a
