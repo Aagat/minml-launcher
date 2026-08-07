@@ -792,7 +792,7 @@ class MainActivity : Activity() {
                 return true
             }
         }
-        if (event.action == KeyEvent.ACTION_DOWN && drawerOpen && event.keyCode == KeyEvent.KEYCODE_ENTER && !searchInput.hasFocus()) {
+        if (event.action == KeyEvent.ACTION_DOWN && drawerOpen && event.keyCode == KeyEvent.KEYCODE_ENTER && appList.hasFocus()) {
             visibleApps.firstOrNull()?.let(::launchApp)
             return true
         }
