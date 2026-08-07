@@ -201,6 +201,7 @@ class LauncherUiTest {
         waitForText("built-in screen time")
         waitForText("hide").click()
         assertTrue(eventually { device.findObject(By.res(PACKAGE_NAME, "home_screen_time")) == null })
+        waitForDescription("Minimal Launcher Home")
         scenario.onActivity { activity -> assertFalse(preferences(activity).showScreenTime) }
     }
 

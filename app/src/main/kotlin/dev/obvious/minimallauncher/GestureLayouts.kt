@@ -3,7 +3,9 @@ package dev.obvious.minimallauncher
 import android.content.Context
 import android.util.AttributeSet
 import android.view.MotionEvent
+import android.view.View
 import android.view.ViewConfiguration
+import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.os.Handler
 import android.os.Looper
@@ -107,10 +109,19 @@ class HomeGestureLayout @JvmOverloads constructor(
     private var startY = 0f
     private var interceptedSwipe: HomeSwipeDirection? = null
     private var longPressTriggered = false
+    private var emptyLongPressEligible = true
     private val longPress = Runnable {
+        if (!emptyLongPressEligible) return@Runnable
         longPressTriggered = true
         performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
         onEmptyLongPress?.invoke()
+    }
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            emptyLongPressEligible = !hasInteractiveDescendantAt(this, event.x, event.y)
+        }
+        return super.dispatchTouchEvent(event)
     }
 
     override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
@@ -121,7 +132,9 @@ class HomeGestureLayout @JvmOverloads constructor(
                 interceptedSwipe = null
                 longPressTriggered = false
                 handler.removeCallbacks(longPress)
-                handler.postDelayed(longPress, ViewConfiguration.getLongPressTimeout().toLong())
+                if (emptyLongPressEligible) {
+                    handler.postDelayed(longPress, ViewConfiguration.getLongPressTimeout().toLong())
+                }
             }
             MotionEvent.ACTION_MOVE -> {
                 val dx = event.x - startX
@@ -146,7 +159,9 @@ class HomeGestureLayout @JvmOverloads constructor(
                 startY = event.y
                 longPressTriggered = false
                 handler.removeCallbacks(longPress)
-                handler.postDelayed(longPress, ViewConfiguration.getLongPressTimeout().toLong())
+                if (emptyLongPressEligible) {
+                    handler.postDelayed(longPress, ViewConfiguration.getLongPressTimeout().toLong())
+                }
             }
             MotionEvent.ACTION_MOVE -> {
                 val dx = event.x - startX
@@ -174,6 +189,21 @@ class HomeGestureLayout @JvmOverloads constructor(
     }
 
     override fun performClick(): Boolean = super.performClick()
+
+    private fun hasInteractiveDescendantAt(parent: ViewGroup, x: Float, y: Float): Boolean {
+        for (index in parent.childCount - 1 downTo 0) {
+            val child = parent.getChildAt(index)
+            if (child.visibility != View.VISIBLE || child.alpha == 0f) continue
+            val left = child.left + child.translationX
+            val top = child.top + child.translationY
+            if (x < left || x >= left + child.width || y < top || y >= top + child.height) continue
+            val childX = x - left + child.scrollX
+            val childY = y - top + child.scrollY
+            if (child is ViewGroup && hasInteractiveDescendantAt(child, childX, childY)) return true
+            if (child.isClickable || child.isLongClickable) return true
+        }
+        return false
+    }
 }
 
 enum class HomeSwipeDirection { UP, DOWN }
