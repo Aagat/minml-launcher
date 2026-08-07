@@ -60,22 +60,26 @@ class EditableWidgetFrame(context: Context) : FrameLayout(context) {
         moveSurface.contentDescription = "Move widget"
         moveSurface.id = R.id.widget_editor_move
         moveSurface.isFocusable = true
-        moveSurface.setOnTouchListener { _, event -> handleMove(event) }
+        moveSurface.setOnTouchListener { view, event ->
+            handleMove(event).also { if (event.actionMasked == MotionEvent.ACTION_UP) view.performClick() }
+        }
         moveSurface.setOnKeyListener { _, keyCode, event ->
             handleNudgeKey(keyCode, event, resizing = false)
         }
-        resizeControl.text = "resize ↘"
+        resizeControl.text = context.getString(R.string.widget_editor_resize_label)
         resizeControl.id = R.id.widget_editor_resize
         resizeControl.contentDescription = "Resize widget"
-        resizeControl.setOnTouchListener { _, event -> handleResize(event) }
+        resizeControl.setOnTouchListener { view, event ->
+            handleResize(event).also { if (event.actionMasked == MotionEvent.ACTION_UP) view.performClick() }
+        }
         resizeControl.setOnKeyListener { _, keyCode, event ->
             handleNudgeKey(keyCode, event, resizing = true)
         }
-        doneControl.text = "done"
+        doneControl.text = context.getString(R.string.widget_editor_done_label)
         doneControl.id = R.id.widget_editor_done
         doneControl.contentDescription = "Finish arranging widget"
         doneControl.setOnClickListener { exitEditMode(commit = true) }
-        removeControl.text = "remove"
+        removeControl.text = context.getString(R.string.widget_editor_remove_label)
         removeControl.id = R.id.widget_editor_remove
         removeControl.contentDescription = "Remove widget"
         removeControl.setOnClickListener { onRemoveRequested?.invoke() }
@@ -275,9 +279,17 @@ class EditableWidgetFrame(context: Context) : FrameLayout(context) {
 
     private fun updatePositionLabel() {
         val params = layoutParams as? FrameLayout.LayoutParams ?: return
-        positionLabel.text = "${(params.leftMargin / density).roundToInt()},${(params.topMargin / density).roundToInt()} · " +
-            "${(params.width / density).roundToInt()}×${(params.height / density).roundToInt()} dp"
-        positionLabel.contentDescription = "Widget position and size ${positionLabel.text}"
+        positionLabel.text = context.getString(
+            R.string.widget_editor_geometry,
+            (params.leftMargin / density).roundToInt(),
+            (params.topMargin / density).roundToInt(),
+            (params.width / density).roundToInt(),
+            (params.height / density).roundToInt(),
+        )
+        positionLabel.contentDescription = context.getString(
+            R.string.widget_editor_geometry_description,
+            positionLabel.text,
+        )
     }
 
     private fun setEditorVisible(visible: Boolean) {
@@ -307,7 +319,7 @@ class EditableWidgetFrame(context: Context) : FrameLayout(context) {
         }
     }
 
-    private fun editorControl(): TextView = TextView(context).apply {
+    private fun editorControl(): EditorControlTextView = EditorControlTextView(context).apply {
         gravity = Gravity.CENTER
         isClickable = true
         isFocusable = true
@@ -322,4 +334,8 @@ class EditableWidgetFrame(context: Context) : FrameLayout(context) {
 
     private val density: Float get() = resources.displayMetrics.density
     private fun dp(value: Int): Int = (value * density).roundToInt()
+}
+
+private class EditorControlTextView(context: Context) : TextView(context) {
+    override fun performClick(): Boolean = super.performClick()
 }
