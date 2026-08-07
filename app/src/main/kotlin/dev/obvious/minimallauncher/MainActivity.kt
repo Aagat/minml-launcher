@@ -369,7 +369,7 @@ class MainActivity : Activity() {
 
     private fun renderSettingsRoot(body: LinearLayout) {
         body.addView(settingsText(
-            "Configure Minimal Launcher without leaving this screen.",
+            "Choose how your Home screen and app drawer look and behave.",
             11f,
             SETTINGS_SECONDARY_COLOR,
             regularTypeface,
