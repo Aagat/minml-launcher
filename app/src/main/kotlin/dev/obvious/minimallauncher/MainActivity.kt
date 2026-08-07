@@ -5,6 +5,8 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.AlertDialog
 import android.app.SearchManager
+import android.app.WallpaperColors
+import android.app.WallpaperManager
 import android.app.role.RoleManager
 import android.appwidget.AppWidgetHost
 import android.appwidget.AppWidgetManager
@@ -88,6 +90,7 @@ class MainActivity : Activity() {
     private lateinit var coarseLocationResolver: CoarseLocationResolver
     private lateinit var appWidgetManager: AppWidgetManager
     private lateinit var appWidgetHost: AppWidgetHost
+    private lateinit var wallpaperManager: WallpaperManager
 
     private val handler = Handler(Looper.getMainLooper())
     private val adapter = AppListAdapter()
@@ -100,6 +103,12 @@ class MainActivity : Activity() {
     private var weatherRequestedAt = 0L
     private var locationRequestInFlight = false
     private var locationDeniedThisSession = false
+
+    private val wallpaperColorsChangedListener = WallpaperManager.OnColorsChangedListener { _: WallpaperColors?, _: Int ->
+        if (::preferences.isInitialized && preferences.appearance == Appearance.AUTO && ::contrastOverlay.isInitialized) {
+            applyAppearance()
+        }
+    }
 
     private val primaryColor: Int get() = preferences.fontColor
     private val secondaryColor: Int get() = withAlpha(preferences.fontColor, 0x88)
@@ -127,11 +136,13 @@ class MainActivity : Activity() {
         coarseLocationResolver = CoarseLocationResolver(this)
         appWidgetManager = AppWidgetManager.getInstance(this)
         appWidgetHost = AppWidgetHost(this, APP_WIDGET_HOST_ID)
+        wallpaperManager = WallpaperManager.getInstance(this)
 
         buildUi()
         setContentView(root)
         root.post(::applyStatusBarPreference)
         applyAppearance()
+        wallpaperManager.addOnColorsChangedListener(wallpaperColorsChangedListener, handler)
         restoreCachedCatalog()
         if (android.os.Build.VERSION.SDK_INT >= 33) {
             onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, ::handleBack)
@@ -186,6 +197,7 @@ class MainActivity : Activity() {
         catalog.stop()
         weatherRepository.close()
         coarseLocationResolver.cancel()
+        runCatching { wallpaperManager.removeOnColorsChangedListener(wallpaperColorsChangedListener) }
         super.onDestroy()
     }
 
@@ -887,17 +899,46 @@ class MainActivity : Activity() {
 
     private fun applyAppearance() {
         val appearance = preferences.appearance
-        val overlayColors = when (appearance) {
-            Appearance.TRANSPARENT -> intArrayOf(Color.TRANSPARENT, Color.TRANSPARENT)
-            Appearance.AUTO -> intArrayOf(0x22000000, 0x33000000, 0x99000000.toInt())
-            Appearance.GRADIENT -> intArrayOf(0x55000000, 0x77000000, 0xBB000000.toInt())
+        val autoDecision = if (appearance == Appearance.AUTO) {
+            ContrastPolicy.decide(systemWallpaperPrimaryColor(), primaryColor)
+        } else null
+        val decision = when (appearance) {
+            Appearance.TRANSPARENT -> AutoContrastDecision(ScrimTone.NONE, ScrimStrength.LIGHT)
+            Appearance.AUTO -> autoDecision!!
+            Appearance.GRADIENT -> AutoContrastDecision(ScrimTone.DARK, ScrimStrength.STRONG)
         }
-        contrastOverlay.background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, overlayColors)
-        clockPanel.background = if (appearance == Appearance.TRANSPARENT) null else GradientDrawable(
-            GradientDrawable.Orientation.LEFT_RIGHT,
-            intArrayOf(0xD9000000.toInt(), 0x99000000.toInt(), 0x33000000),
-        ).apply { cornerRadius = dp(8).toFloat() }
-        dateView.setTextColor(if (appearance == Appearance.TRANSPARENT) secondaryColor else wallpaperSecondaryColor)
+        contrastOverlay.background = GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            fullScreenScrimColors(decision),
+        )
+        clockPanel.background = localizedClockScrimColors(decision)?.let { colors ->
+            GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, colors).apply { cornerRadius = dp(8).toFloat() }
+        }
+        dateView.setTextColor(if (decision.tone == ScrimTone.NONE) secondaryColor else wallpaperSecondaryColor)
+    }
+
+    private fun systemWallpaperPrimaryColor(): Int? = runCatching {
+        wallpaperManager.getWallpaperColors(WallpaperManager.FLAG_SYSTEM)?.primaryColor?.toArgb()
+    }.getOrNull()
+
+    private fun fullScreenScrimColors(decision: AutoContrastDecision): IntArray = when (decision.tone) {
+        ScrimTone.NONE -> intArrayOf(Color.TRANSPARENT, Color.TRANSPARENT)
+        ScrimTone.DARK -> if (decision.strength == ScrimStrength.STRONG) {
+            intArrayOf(0x22000000, 0x44000000, 0xAA000000.toInt())
+        } else {
+            intArrayOf(Color.TRANSPARENT, 0x22000000, 0x66000000)
+        }
+        ScrimTone.LIGHT -> if (decision.strength == ScrimStrength.STRONG) {
+            intArrayOf(0x22FFFFFF, 0x55FFFFFF, 0xAAFFFFFF.toInt())
+        } else {
+            intArrayOf(Color.TRANSPARENT, 0x22FFFFFF, 0x66FFFFFF)
+        }
+    }
+
+    private fun localizedClockScrimColors(decision: AutoContrastDecision): IntArray? = when (decision.tone) {
+        ScrimTone.NONE -> null
+        ScrimTone.DARK -> intArrayOf(0xD9000000.toInt(), 0x99000000.toInt(), 0x33000000)
+        ScrimTone.LIGHT -> intArrayOf(0xD9FFFFFF.toInt(), 0x99FFFFFF.toInt(), 0x33FFFFFF)
     }
 
     private fun applyStatusBarPreference() {
@@ -1474,8 +1515,8 @@ class MainActivity : Activity() {
     }
 
     private fun commitWidget(id: Int) {
-        val placements = loadWidgetPlacements().filterNot { it.first == id }.toMutableList()
-        placements += id to 160
+        val placements = loadWidgetPlacements().filterNot { it.appWidgetId == id }.toMutableList()
+        placements += WidgetPlacement(id, 160)
         saveWidgetPlacements(placements)
         pendingWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
         renderWidgets()
@@ -1484,17 +1525,19 @@ class MainActivity : Activity() {
     private fun renderWidgets() {
         if (!::widgetContainer.isInitialized) return
         widgetContainer.removeAllViews()
-        val valid = mutableListOf<Pair<Int, Int>>()
-        loadWidgetPlacements().forEach { (id, height) ->
+        val valid = mutableListOf<WidgetPlacement>()
+        loadWidgetPlacements().forEach { placement ->
+            val id = placement.appWidgetId
+            val height = placement.heightDp
             val info = appWidgetManager.getAppWidgetInfo(id) ?: run {
                 runCatching { appWidgetHost.deleteAppWidgetId(id) }
                 return@forEach
             }
-            valid += id to height
+            valid += WidgetPlacement(id, height)
             val hostView = appWidgetHost.createView(this, id, info).apply {
                 setAppWidget(id, info)
                 setOnLongClickListener {
-                    showWidgetActions(id, height)
+                    showWidgetActions(id)
                     true
                 }
             }
@@ -1505,40 +1548,56 @@ class MainActivity : Activity() {
         if (valid != loadWidgetPlacements()) saveWidgetPlacements(valid)
     }
 
-    private fun showWidgetActions(id: Int, currentHeight: Int) {
-        val items = arrayOf("compact · 100 dp", "standard · 160 dp", "tall · 240 dp", "remove")
+    private fun showWidgetActions(id: Int) {
+        val items = arrayOf(
+            "compact · 100 dp",
+            "standard · 160 dp",
+            "tall · 240 dp",
+            "move up",
+            "move down",
+            "remove",
+        )
         AlertDialog.Builder(this)
             .setTitle("widget")
             .setItems(items) { _, which ->
-                if (which == 3) {
-                    appWidgetHost.deleteAppWidgetId(id)
-                    saveWidgetPlacements(loadWidgetPlacements().filterNot { it.first == id })
-                } else {
-                    val height = intArrayOf(100, 160, 240)[which]
-                    saveWidgetPlacements(loadWidgetPlacements().map { if (it.first == id) id to height else it })
-                    appWidgetManager.updateAppWidgetOptions(id, Bundle().apply {
-                        putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, height)
-                        putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, height)
-                    })
+                val placements = loadWidgetPlacements().toMutableList()
+                val index = placements.indexOfFirst { it.appWidgetId == id }
+                when (which) {
+                    in 0..2 -> {
+                        val height = intArrayOf(100, 160, 240)[which]
+                        saveWidgetPlacements(placements.map { if (it.appWidgetId == id) WidgetPlacement(id, height) else it })
+                        val availableWidthDp = (widgetContainer.width / resources.displayMetrics.density).toInt().coerceAtLeast(1)
+                        appWidgetManager.updateAppWidgetOptions(id, Bundle().apply {
+                            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, availableWidthDp)
+                            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, availableWidthDp)
+                            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, height)
+                            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, height)
+                        })
+                    }
+                    3 -> if (index > 0) {
+                        placements[index] = placements[index - 1].also { placements[index - 1] = placements[index] }
+                        saveWidgetPlacements(placements)
+                    }
+                    4 -> if (index >= 0 && index < placements.lastIndex) {
+                        placements[index] = placements[index + 1].also { placements[index + 1] = placements[index] }
+                        saveWidgetPlacements(placements)
+                    }
+                    5 -> {
+                        appWidgetHost.deleteAppWidgetId(id)
+                        saveWidgetPlacements(placements.filterNot { it.appWidgetId == id })
+                    }
                 }
                 renderWidgets()
             }
             .show()
     }
 
-    private fun loadWidgetPlacements(): List<Pair<Int, Int>> = runtimePreferences
-        .getString("widget.placements", "")
-        .orEmpty()
-        .split(';')
-        .mapNotNull { value ->
-            val parts = value.split(':')
-            val id = parts.getOrNull(0)?.toIntOrNull()
-            val height = parts.getOrNull(1)?.toIntOrNull()
-            if (id != null && height != null) id to height.coerceIn(80, 320) else null
-        }
+    private fun loadWidgetPlacements(): List<WidgetPlacement> = WidgetPlacementCodec.decode(
+        runtimePreferences.getString("widget.placements", "").orEmpty(),
+    )
 
-    private fun saveWidgetPlacements(placements: List<Pair<Int, Int>>) {
-        runtimePreferences.edit().putString("widget.placements", placements.joinToString(";") { "${it.first}:${it.second}" }).apply()
+    private fun saveWidgetPlacements(placements: List<WidgetPlacement>) {
+        runtimePreferences.edit().putString("widget.placements", WidgetPlacementCodec.encode(placements)).apply()
     }
 
     private fun styledText(sizeSp: Float, color: Int, face: Typeface): TextView = TextView(this).apply {
