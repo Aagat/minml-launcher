@@ -3,4 +3,9 @@
     <string name="app_name">Minimal Launcher</string>
     <string name="open_apps">Open apps</string>
     <string name="search_apps">Search apps</string>
+    <string name="no_matching_apps">no matching apps</string>
+    <string name="weather_set_manual_location">weather · set manual location</string>
+    <string name="weather_loading">weather · loading</string>
+    <string name="enable_open_meteo_weather">Enable Open-Meteo weather</string>
+    <string name="weather_manual_disclosure">Manual coordinates are sent to Open-Meteo. Location permission is not required.</string>
 </resources>

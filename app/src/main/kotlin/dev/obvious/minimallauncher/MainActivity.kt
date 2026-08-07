@@ -304,7 +304,7 @@ class MainActivity : Activity() {
         drawer.addView(appList, FrameLayout.LayoutParams(dp(300), dp(300)).apply { gravity = Gravity.END })
 
         emptyState = styledText(12f, SECONDARY, regularTypeface).apply {
-            text = "no matching apps"
+            text = getString(R.string.no_matching_apps)
             gravity = Gravity.END or Gravity.TOP
             setPadding(0, dp(32), dp(22), 0)
         }
@@ -694,12 +694,12 @@ class MainActivity : Activity() {
         val longitude = preferences.weatherLongitude.toDoubleOrNull()
         weatherView.visibility = View.VISIBLE
         if (latitude == null || longitude == null) {
-            weatherView.text = "weather · set manual location"
+            weatherView.text = getString(R.string.weather_set_manual_location)
             return
         }
         if (System.currentTimeMillis() - weatherRequestedAt < 60 * 60 * 1000L) return
         weatherRequestedAt = System.currentTimeMillis()
-        weatherView.text = "weather · loading"
+        weatherView.text = getString(R.string.weather_loading)
         weatherRepository.load(latitude, longitude) { result ->
             handler.post {
                 if (!preferences.weatherEnabled) return@post
@@ -856,11 +856,11 @@ class MainActivity : Activity() {
             setPadding(dp(24), dp(8), dp(24), 0)
         }
         val enabled = CheckBox(this).apply {
-            text = "Enable Open-Meteo weather"
+            text = getString(R.string.enable_open_meteo_weather)
             isChecked = preferences.weatherEnabled
         }
         val disclosure = styledText(11f, SECONDARY, regularTypeface).apply {
-            text = "Manual coordinates are sent to Open-Meteo. Location permission is not required."
+            text = getString(R.string.weather_manual_disclosure)
             setPadding(0, dp(8), 0, dp(8))
         }
         val latitude = EditText(this).apply {

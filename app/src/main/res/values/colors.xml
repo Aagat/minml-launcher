@@ -1,8 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="primary_ink">#F4F4F2</color>
-    <color name="secondary_ink">#7D7D7A</color>
-    <color name="wallpaper_secondary_ink">#D8D8D8</color>
     <color name="accent">#B7F36B</color>
-    <color name="essential_surface">#000000</color>
 </resources>

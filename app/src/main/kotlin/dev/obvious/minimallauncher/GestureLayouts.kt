@@ -47,7 +47,12 @@ class FilterGestureLayout @JvmOverloads constructor(
                     onFilterSwipe?.invoke(-1)
                 }
             }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+            MotionEvent.ACTION_UP -> {
+                if (!handled) performClick()
+                gesture.reset()
+                handled = false
+            }
+            MotionEvent.ACTION_CANCEL -> {
                 gesture.reset()
                 handled = false
             }
@@ -122,6 +127,7 @@ class HomeGestureLayout @JvmOverloads constructor(
             MotionEvent.ACTION_UP -> {
                 handler.removeCallbacks(longPress)
                 if (intercepting) onSwipeUp?.invoke()
+                else if (!longPressTriggered) performClick()
                 intercepting = false
             }
             MotionEvent.ACTION_CANCEL -> {
