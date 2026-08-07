@@ -198,6 +198,10 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
         get() = backend.getBoolean(KEY_SHOW_BUILT_IN_CLOCK, true)
         set(value) = backend.putBoolean(KEY_SHOW_BUILT_IN_CLOCK, value)
 
+    var showScreenTime: Boolean
+        get() = backend.getBoolean(KEY_SHOW_SCREEN_TIME)
+        set(value) = backend.putBoolean(KEY_SHOW_SCREEN_TIME, value)
+
     var autoShowKeyboard: Boolean
         get() = backend.getBoolean(KEY_AUTO_SHOW_KEYBOARD, true)
         set(value) = backend.putBoolean(KEY_AUTO_SHOW_KEYBOARD, value)
@@ -291,6 +295,7 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
         const val KEY_DRAWER_SURFACE_MODE = "customization.drawer_surface_mode"
         const val KEY_DRAWER_SURFACE_COLOR = "customization.drawer_surface_color"
         const val KEY_SHOW_BUILT_IN_CLOCK = "customization.show_built_in_clock"
+        const val KEY_SHOW_SCREEN_TIME = "home.show_screen_time"
         const val KEY_AUTO_SHOW_KEYBOARD = "customization.auto_show_keyboard"
         const val KEY_SHOW_FILTER_BAR = "customization.show_filter_bar"
         const val KEY_SHOW_DRAWER_GRADIENT = "customization.show_drawer_gradient"
