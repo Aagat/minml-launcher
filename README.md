@@ -28,7 +28,7 @@ compile SDK is 37.
 
 The generic debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
 The current device-tested artifact is
-`app/build/outputs/apk/debug/minimal-launcher-0.3.0-debug.apk`.
+`app/build/outputs/apk/debug/minimal-launcher-0.4.0-debug.apk`.
 
 ## Run
 
@@ -66,6 +66,11 @@ The emulator process crashed during injected drawer/keyboard input when using
   adjustable in launcher settings.
 - Personal apps appear in All/Daily/Media. Apps from a secondary/work profile
   appear exclusively in Work and use an `(w)` suffix in settings lists.
+- Open **App drawer → Manage apps**, or long-press a visible drawer row, to
+  rename an app, hide/show it in the drawer, reset its name, or open Android app
+  details. Hidden entries remain available in Manage apps so they can always be
+  restored. Names and hidden state are profile-specific and persisted; aliases
+  also appear on Home favorites.
 - Type with the system keyboard; Enter/Go launches the first ranked result.
 - Back dismisses the IME first, then closes the drawer.
 - Optional short fade/slide transitions animate drawer opening and closing.
