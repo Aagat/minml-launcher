@@ -3,7 +3,7 @@
 A native, text-first Android home application built around the approved Minimal
 Launcher design. It displays the current system wallpaper, a clock/date panel,
 configurable right-aligned favorites, optional weather, widgets, and a searchable
-right-aligned app drawer with all/daily/work/media filters.
+right-aligned app drawer with built-in and user-defined filters.
 
 The launcher uses Android platform APIs directly: `LauncherApps` for launchable
 activities and user profiles, the system IME for search, `AppWidgetHost` and the
@@ -26,7 +26,9 @@ compile SDK is 37.
 ./gradlew clean assembleDebug lintDebug testDebugUnitTest
 ```
 
-The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
+The generic debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
+The current device-tested artifact is
+`app/build/outputs/apk/debug/minimal-launcher-0.1.5-debug.apk`.
 
 ## Run
 
@@ -56,7 +58,8 @@ The emulator process crashed during injected drawer/keyboard input when using
   keyboard to open the drawer. Search is focused and the system keyboard opens
   automatically.
 - Tap filter labels or swipe horizontally over the drawer (including app rows)
-  to cycle all/daily/work/media. Vertical gestures continue to scroll the list.
+  to cycle all/daily/work/media and any custom categories. Vertical gestures
+  continue to scroll the list.
 - Make a deliberate downward swipe from the top of the app list. The first
   swipe hides the keyboard using the same sensitivity as Home’s opening swipe;
   the next returns Home. Drawer-to-Home distance and speed are independently
@@ -65,8 +68,12 @@ The emulator process crashed during injected drawer/keyboard input when using
   appear exclusively in Work and use an `(w)` suffix in settings lists.
 - Type with the system keyboard; Enter/Go launches the first ranked result.
 - Back dismisses the IME first, then closes the drawer.
-- Long-press empty Home space to configure favorites, filters, appearance,
-  optional weather, widgets, and Android system surfaces.
+- Long-press empty Home space to add custom filters and configure favorites,
+  font size/color, accent color, automatic keyboard display, filter-label/fade/
+  underline visibility, list margins, status bar, appearance, optional weather,
+  widgets, and Android system surfaces.
+- When Minimal Launcher is not the default Home app, tap the small Home-screen
+  prompt to open Android's Home-app chooser.
 
 See `SESSION_HANDOFF.md` for implemented scope, validation evidence, and known
 limitations.
