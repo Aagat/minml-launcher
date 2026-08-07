@@ -33,6 +33,28 @@ It is a non-debuggable release build signed with this workstation's Android
 debug certificate for local testing and is not suitable for public
 distribution.
 
+### Automated UI validation
+
+Run the complete repeatable launcher check with:
+
+```bash
+./scripts/ui-test.sh
+```
+
+The runner uses an already connected emulator or starts `medium_phone`
+headlessly with the stable `swangle` renderer. It performs a clean debug build,
+all JVM tests, Android lint, and five native UI Automator flows covering Home
+registration/settings, preference restoration, drawer rendering modes,
+search/IME/app launch/filter/dismiss gestures, and rotation. It then writes one
+self-contained summary to
+`app/build/reports/launcher-ui/index.html`, with links to the detailed Gradle
+reports plus screenshots, UI hierarchies, device metadata, build/install logs,
+and filtered logcat output.
+
+Set `ANDROID_SERIAL` to target a specific already connected device. Set
+`AVD_NAME` to use another AVD, or `KEEP_AVD=1` to leave an AVD started by the
+script running after the report is generated.
+
 ## Release build
 
 ```bash
