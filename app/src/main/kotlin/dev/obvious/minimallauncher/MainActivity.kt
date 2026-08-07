@@ -410,6 +410,9 @@ class MainActivity : Activity() {
     }
 
     private fun updateScrollThumb(first: Int, visible: Int, total: Int) {
+        // ListView dispatches an initial scroll callback synchronously when the
+        // listener is attached, before the custom indicator views are added.
+        if (!::scrollTrack.isInitialized || !::scrollThumb.isInitialized) return
         val trackParams = scrollTrack.layoutParams as? FrameLayout.LayoutParams ?: return
         val trackHeight = trackParams.height
         if (total <= visible || total == 0 || trackHeight <= 0) {
