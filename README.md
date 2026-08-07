@@ -27,8 +27,22 @@ compile SDK is 37.
 ```
 
 The generic debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
-The current packaged artifact is
-`app/build/outputs/apk/debug/minimal-launcher-0.5.1-debug.apk`.
+The current locally installable release artifact is
+`app/build/outputs/apk/release/minimal-launcher-0.5.1-release-local.apk`.
+It is a non-debuggable release build signed with this workstation's Android
+debug certificate for local testing and is not suitable for public
+distribution.
+
+## Release build
+
+```bash
+./gradlew clean assembleRelease lintRelease testDebugUnitTest
+```
+
+Gradle writes the unsigned release APK to
+`app/build/outputs/apk/release/app-release-unsigned.apk`. A production release
+must be signed with a private, durable release key. The repository intentionally
+does not contain one.
 
 ## Run
 
