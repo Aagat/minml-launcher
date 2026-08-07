@@ -9,6 +9,17 @@
     <item name="widget_editor_resize" type="id" />
     <item name="widget_editor_done" type="id" />
     <item name="widget_editor_remove" type="id" />
+    <item name="color_preset_1" type="id" />
+    <item name="color_preset_2" type="id" />
+    <item name="color_preset_3" type="id" />
+    <item name="color_preset_4" type="id" />
+    <item name="color_preset_5" type="id" />
+    <item name="visual_color_picker" type="id" />
+    <item name="color_picker_preview" type="id" />
+    <item name="color_hue_slider" type="id" />
+    <item name="color_saturation_slider" type="id" />
+    <item name="color_brightness_slider" type="id" />
+    <item name="color_hex_input" type="id" />
     <item name="launcher_drawer" type="id" />
     <item name="drawer_app_list" type="id" />
     <item name="drawer_header" type="id" />

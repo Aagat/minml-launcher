@@ -603,7 +603,7 @@ class MainActivity : Activity() {
             },
             formatColor(preferences.drawerSurfaceColor),
             enabled = preferences.drawerSurfaceMode == DrawerSurfaceMode.CUSTOM,
-        ) { showDrawerSurfaceColorEditor() }
+        ) { showColorChooser(ColorSettingTarget.DRAWER_BACKGROUND) }
         addSettingsRow(body, "Open keyboard automatically", "Search remains focused for physical keyboards", onOff(preferences.autoShowKeyboard)) {
             preferences.autoShowKeyboard = !preferences.autoShowKeyboard
             renderSettingsPage()
@@ -648,8 +648,12 @@ class MainActivity : Activity() {
             preferences.textTransform.displayName,
         ) { showTextTransformEditor() }
         addSettingsRow(body, "Font size", "Launcher text scale", "${preferences.fontScalePercent}%") { showFontSizeEditor() }
-        addSettingsRow(body, "Font color", "Primary launcher text", formatColor(preferences.fontColor)) { showColorEditor(accent = false) }
-        addSettingsRow(body, "Accent color", "Filters, controls, and highlights", formatColor(preferences.accentColor)) { showColorEditor(accent = true) }
+        addSettingsRow(body, "Font color", "Primary launcher text", formatColor(preferences.fontColor)) {
+            showColorChooser(ColorSettingTarget.FONT)
+        }
+        addSettingsRow(body, "Accent color", "Filters, controls, and highlights", formatColor(preferences.accentColor)) {
+            showColorChooser(ColorSettingTarget.ACCENT)
+        }
 
         addSettingsSection(body, "background")
         addSettingsRow(body, "Background mode", "Wallpaper treatment or solid color", preferences.appearance.name.lowercase()) {
@@ -661,7 +665,7 @@ class MainActivity : Activity() {
             if (preferences.appearance == Appearance.SOLID) "Current opaque background" else "Available when Background mode is Solid",
             formatColor(preferences.solidBackgroundColor),
             enabled = preferences.appearance == Appearance.SOLID,
-        ) { showSolidBackgroundColorEditor() }
+        ) { showColorChooser(ColorSettingTarget.SOLID_BACKGROUND) }
 
         addSettingsSection(body, "motion")
         addSettingsRow(body, "Animations", "Drawer and filter transitions", onOff(preferences.animationsEnabled)) {
@@ -1958,28 +1962,287 @@ class MainActivity : Activity() {
             .show()
     }
 
-    private fun showDrawerSurfaceColorEditor() {
-        val input = EditText(this).apply {
-            hint = "#RRGGBB"
-            setSingleLine(true)
-            setText(formatColor(preferences.drawerSurfaceColor))
-            setSelection(length())
+    private fun showColorChooser(target: ColorSettingTarget) {
+        val current = selectedColor(target)
+        val backgroundTarget = target == ColorSettingTarget.SOLID_BACKGROUND ||
+            target == ColorSettingTarget.DRAWER_BACKGROUND
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), dp(4), dp(12), dp(4))
         }
-        AlertDialog.Builder(this)
-            .setTitle("search backdrop color")
-            .setView(input)
-            .setPositiveButton("save") { _, _ ->
-                val parsed = runCatching { Color.parseColor(input.text.toString().trim()) }.getOrNull()
-                if (parsed == null) {
-                    Toast.makeText(this, "Use a color such as #101416", Toast.LENGTH_SHORT).show()
-                } else {
-                    preferences.drawerSurfaceColor = parsed or 0xFF000000.toInt()
-                    applyAppearance()
-                    renderSettingsPage()
+        content.addView(settingsText(
+            if (backgroundTarget) {
+                "Choose a suggested color pair. The launcher will also set readable text automatically."
+            } else {
+                "Choose a suggested color, or create an exact custom color."
+            },
+            10f,
+            SETTINGS_SECONDARY_COLOR,
+            regularTypeface,
+        ).apply { setPadding(dp(12), 0, dp(12), dp(8)) })
+
+        lateinit var dialog: AlertDialog
+        val presetIds = intArrayOf(
+            R.id.color_preset_1,
+            R.id.color_preset_2,
+            R.id.color_preset_3,
+            R.id.color_preset_4,
+            R.id.color_preset_5,
+        )
+        LauncherColorPalette.presets(target).forEachIndexed { index, preset ->
+            val row = LinearLayout(this).apply {
+                id = presetIds[index]
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                isClickable = true
+                isFocusable = true
+                minimumHeight = dp(56)
+                setPadding(dp(8), dp(4), dp(8), dp(4))
+                contentDescription = buildString {
+                    append(preset.name).append(", ").append(formatColor(preset.color))
+                    preset.pairedFontColor?.let { append(", paired text ").append(formatColor(it)) }
+                    if (preset.color == current) append(", selected")
+                }
+                setOnClickListener {
+                    applyColorSelection(target, preset.color)
+                    dialog.dismiss()
                 }
             }
+            val sampleTextColor = preset.pairedFontColor ?: LauncherColorPalette.pairedFontColor(preset.color)
+            val swatch = TextView(this).apply {
+                gravity = Gravity.CENTER
+                text = if (backgroundTarget) "Aa" else "●"
+                typeface = mediumTypeface
+                setTextColor(sampleTextColor)
+                background = GradientDrawable().apply {
+                    setColor(preset.color)
+                    cornerRadius = dp(7).toFloat()
+                    if (preset.color == current) setStroke(dp(2), accentColor)
+                }
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }
+            row.addView(swatch, LinearLayout.LayoutParams(dp(56), dp(44)).apply { marginEnd = dp(12) })
+            val labels = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            labels.addView(settingsText(preset.name, 12f, SETTINGS_PRIMARY_COLOR, mediumTypeface))
+            labels.addView(settingsText(
+                if (preset.pairedFontColor == null) {
+                    formatColor(preset.color)
+                } else {
+                    "${formatColor(preset.color)} · text ${formatColor(preset.pairedFontColor)}"
+                },
+                9f,
+                SETTINGS_SECONDARY_COLOR,
+                regularTypeface,
+            ))
+            row.addView(labels, LinearLayout.LayoutParams(0, WRAP, 1f))
+            row.addView(settingsText(
+                if (preset.color == current) "✓" else "",
+                15f,
+                SETTINGS_ACCENT_COLOR,
+                mediumTypeface,
+            ).apply { gravity = Gravity.CENTER }, LinearLayout.LayoutParams(dp(32), dp(44)))
+            content.addView(row, LinearLayout.LayoutParams(MATCH, WRAP))
+        }
+
+        content.addView(colorDialogButton("color picker…", "Open visual color picker") {
+            dialog.dismiss()
+            showVisualColorPicker(target, current)
+        }, LinearLayout.LayoutParams(MATCH, dp(48)))
+        content.addView(colorDialogButton("hex code…", "Enter an exact hexadecimal color") {
+            dialog.dismiss()
+            showHexColorEditor(target, current)
+        }, LinearLayout.LayoutParams(MATCH, dp(48)))
+
+        dialog = AlertDialog.Builder(this)
+            .setTitle(target.title)
+            .setView(ScrollView(this).apply { addView(content) })
+            .setNegativeButton("cancel", null)
+            .create()
+        dialog.show()
+    }
+
+    private fun showVisualColorPicker(target: ColorSettingTarget, initialColor: Int) {
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(4), dp(20), 0)
+        }
+        val preview = TextView(this).apply {
+            id = R.id.color_picker_preview
+            gravity = Gravity.CENTER
+            typeface = mediumTypeface
+            setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14f)
+            minHeight = dp(56)
+        }
+        val picker = HsvColorPickerView(this).apply {
+            id = R.id.visual_color_picker
+            setPadding(0, dp(8), 0, dp(8))
+        }
+        val hueLabel = settingsText("", 10f, SETTINGS_SECONDARY_COLOR, regularTypeface)
+        val saturationLabel = settingsText("", 10f, SETTINGS_SECONDARY_COLOR, regularTypeface)
+        val brightnessLabel = settingsText("", 10f, SETTINGS_SECONDARY_COLOR, regularTypeface)
+        val hueSlider = SeekBar(this).apply {
+            id = R.id.color_hue_slider
+            max = 360
+            contentDescription = "Hue"
+        }
+        val saturationSlider = SeekBar(this).apply {
+            id = R.id.color_saturation_slider
+            max = 100
+            contentDescription = "Saturation"
+        }
+        val brightnessSlider = SeekBar(this).apply {
+            id = R.id.color_brightness_slider
+            max = 100
+            contentDescription = "Brightness"
+        }
+        var selected = initialColor or 0xFF000000.toInt()
+        var synchronizing = false
+
+        fun renderColor(color: Int, updatePicker: Boolean) {
+            selected = color or 0xFF000000.toInt()
+            val hsv = FloatArray(3)
+            Color.colorToHSV(selected, hsv)
+            synchronizing = true
+            hueSlider.progress = hsv[0].toInt()
+            saturationSlider.progress = (hsv[1] * 100).toInt()
+            brightnessSlider.progress = (hsv[2] * 100).toInt()
+            synchronizing = false
+            hueLabel.text = getString(R.string.color_hue_value, hueSlider.progress)
+            saturationLabel.text = getString(R.string.color_saturation_value, saturationSlider.progress)
+            brightnessLabel.text = getString(R.string.color_brightness_value, brightnessSlider.progress)
+            val backgroundTarget = target == ColorSettingTarget.SOLID_BACKGROUND ||
+                target == ColorSettingTarget.DRAWER_BACKGROUND
+            val paired = LauncherColorPalette.pairedFontColor(selected)
+            if (backgroundTarget) {
+                preview.setBackgroundColor(selected)
+                preview.setTextColor(paired)
+                preview.text = getString(R.string.color_preview_pair, formatColor(selected), formatColor(paired))
+            } else {
+                preview.setBackgroundColor(paired)
+                preview.setTextColor(selected)
+                preview.text = getString(R.string.color_preview_single, formatColor(selected))
+            }
+            preview.contentDescription = preview.text
+            if (updatePicker) picker.color = selected
+        }
+
+        val sliderListener = object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (synchronizing) return
+                renderColor(
+                    Color.HSVToColor(floatArrayOf(
+                        hueSlider.progress.toFloat(),
+                        saturationSlider.progress / 100f,
+                        brightnessSlider.progress / 100f,
+                    )),
+                    updatePicker = true,
+                )
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+        }
+        hueSlider.setOnSeekBarChangeListener(sliderListener)
+        saturationSlider.setOnSeekBarChangeListener(sliderListener)
+        brightnessSlider.setOnSeekBarChangeListener(sliderListener)
+        picker.onColorChanged = { renderColor(it, updatePicker = false) }
+        renderColor(selected, updatePicker = true)
+
+        content.addView(preview, LinearLayout.LayoutParams(MATCH, dp(56)))
+        content.addView(picker, LinearLayout.LayoutParams(MATCH, dp(250)))
+        listOf(
+            hueLabel to hueSlider,
+            saturationLabel to saturationSlider,
+            brightnessLabel to brightnessSlider,
+        ).forEach { (label, slider) ->
+            content.addView(label, LinearLayout.LayoutParams(MATCH, WRAP))
+            content.addView(slider, LinearLayout.LayoutParams(MATCH, WRAP))
+        }
+        AlertDialog.Builder(this)
+            .setTitle("custom ${target.title}")
+            .setView(ScrollView(this).apply { addView(content) })
+            .setPositiveButton("save") { _, _ -> applyColorSelection(target, selected) }
+            .setNeutralButton("hex code") { _, _ -> showHexColorEditor(target, selected) }
             .setNegativeButton("cancel", null)
             .show()
+    }
+
+    private fun showHexColorEditor(target: ColorSettingTarget, initialColor: Int) {
+        val input = EditText(this).apply {
+            id = R.id.color_hex_input
+            hint = "#RRGGBB"
+            setSingleLine(true)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
+            setText(formatColor(initialColor))
+            setSelection(length())
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("exact ${target.title}")
+            .setMessage("Enter #RGB, #RRGGBB, or #AARRGGBB. Saved colors are always opaque.")
+            .setView(input)
+            .setPositiveButton("save", null)
+            .setNeutralButton("color picker") { _, _ -> showVisualColorPicker(target, initialColor) }
+            .setNegativeButton("cancel", null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val parsed = LauncherColorPalette.parseHex(input.text.toString())
+                if (parsed == null) {
+                    input.error = "Use a color such as #B7F36B"
+                } else {
+                    dialog.dismiss()
+                    applyColorSelection(target, parsed)
+                }
+            }
+        }
+        dialog.show()
+        input.requestFocus()
+    }
+
+    private fun selectedColor(target: ColorSettingTarget): Int = when (target) {
+        ColorSettingTarget.FONT -> preferences.fontColor
+        ColorSettingTarget.ACCENT -> preferences.accentColor
+        ColorSettingTarget.SOLID_BACKGROUND -> preferences.solidBackgroundColor
+        ColorSettingTarget.DRAWER_BACKGROUND -> preferences.drawerSurfaceColor
+    }
+
+    private fun applyColorSelection(target: ColorSettingTarget, color: Int) {
+        val opaque = color or 0xFF000000.toInt()
+        val oldFont = preferences.fontColor
+        when (target) {
+            ColorSettingTarget.FONT -> preferences.fontColor = opaque
+            ColorSettingTarget.ACCENT -> preferences.accentColor = opaque
+            ColorSettingTarget.SOLID_BACKGROUND -> {
+                preferences.solidBackgroundColor = opaque
+                preferences.fontColor = LauncherColorPalette.pairedFontColor(opaque)
+            }
+            ColorSettingTarget.DRAWER_BACKGROUND -> {
+                preferences.drawerSurfaceColor = opaque
+                preferences.fontColor = LauncherColorPalette.pairedFontColor(opaque)
+            }
+        }
+        if (
+            (target == ColorSettingTarget.SOLID_BACKGROUND || target == ColorSettingTarget.DRAWER_BACKGROUND) &&
+            oldFont != preferences.fontColor
+        ) {
+            Toast.makeText(
+                this,
+                "Text changed to ${formatColor(preferences.fontColor)} for contrast",
+                Toast.LENGTH_LONG,
+            ).show()
+        }
+        recreate()
+    }
+
+    private fun colorDialogButton(label: String, description: String, action: () -> Unit): Button = Button(this).apply {
+        text = label
+        contentDescription = description
+        gravity = Gravity.START or Gravity.CENTER_VERTICAL
+        isAllCaps = false
+        typeface = mediumTypeface
+        setTextColor(SETTINGS_ACCENT_COLOR)
+        setBackgroundColor(Color.TRANSPARENT)
+        setPadding(dp(12), 0, dp(12), 0)
+        setOnClickListener { action() }
     }
 
     private fun showClockFormatEditor() {
@@ -2156,58 +2419,6 @@ class MainActivity : Activity() {
             .setPositiveButton("save") { _, _ ->
                 preferences.fontScalePercent = slider.progress + 75
                 recreate()
-            }
-            .setNegativeButton("cancel", null)
-            .show()
-    }
-
-    private fun showColorEditor(accent: Boolean) {
-        val input = EditText(this).apply {
-            hint = "#RRGGBB"
-            setSingleLine(true)
-            setText(formatColor(if (accent) preferences.accentColor else preferences.fontColor))
-            setSelection(length())
-        }
-        AlertDialog.Builder(this)
-            .setTitle(if (accent) "accent color" else "font color")
-            .setView(input)
-            .setPositiveButton("save") { _, _ ->
-                val parsed = runCatching { Color.parseColor(input.text.toString().trim()) }.getOrNull()
-                if (parsed == null) {
-                    Toast.makeText(this, "Use a color such as #B7F36B", Toast.LENGTH_SHORT).show()
-                } else {
-                    val opaque = parsed or 0xFF000000.toInt()
-                    if (accent) preferences.accentColor = opaque else preferences.fontColor = opaque
-                    recreate()
-                }
-            }
-            .setNegativeButton("cancel", null)
-            .show()
-    }
-
-    private fun showSolidBackgroundColorEditor() {
-        val input = EditText(this).apply {
-            hint = "#RRGGBB"
-            setSingleLine(true)
-            setText(formatColor(preferences.solidBackgroundColor))
-            setSelection(length())
-        }
-        AlertDialog.Builder(this)
-            .setTitle("solid background color")
-            .setView(input)
-            .setPositiveButton("save") { _, _ ->
-                val parsed = runCatching { Color.parseColor(input.text.toString().trim()) }.getOrNull()
-                if (parsed == null) {
-                    Toast.makeText(this, "Use a color such as #101416", Toast.LENGTH_SHORT).show()
-                } else {
-                    preferences.solidBackgroundColor = parsed or 0xFF000000.toInt()
-                    if (preferences.appearance == Appearance.SOLID) {
-                        applyAppearance()
-                    } else {
-                        Toast.makeText(this, "Color saved; turn on Solid background to use it", Toast.LENGTH_LONG).show()
-                    }
-                    renderSettingsPage()
-                }
             }
             .setNegativeButton("cancel", null)
             .show()
@@ -2925,7 +3136,7 @@ class MainActivity : Activity() {
 
     private fun withAlpha(color: Int, alpha: Int): Int = Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
 
-    private fun formatColor(color: Int): String = String.format(Locale.ROOT, "#%06X", color and 0xFFFFFF)
+    private fun formatColor(color: Int): String = LauncherColorPalette.formatHex(color)
 
     private fun LinearLayout.children(): Sequence<View> = sequence {
         for (index in 0 until childCount) yield(getChildAt(index))

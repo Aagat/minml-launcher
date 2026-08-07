@@ -41,4 +41,9 @@
     <string name="widget_editor_remove_label">remove</string>
     <string name="widget_editor_geometry">%1$d,%2$d · %3$d×%4$d dp</string>
     <string name="widget_editor_geometry_description">Widget position and size %1$s</string>
+    <string name="color_hue_value">Hue · %1$d°</string>
+    <string name="color_saturation_value">Saturation · %1$d%%</string>
+    <string name="color_brightness_value">Brightness · %1$d%%</string>
+    <string name="color_preview_pair">%1$s background · %2$s text</string>
+    <string name="color_preview_single">%1$s · Aa</string>
 </resources>
