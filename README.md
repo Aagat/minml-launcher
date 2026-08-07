@@ -27,8 +27,8 @@ compile SDK is 37.
 ```
 
 The generic debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
-The current device-tested artifact is
-`app/build/outputs/apk/debug/minimal-launcher-0.4.1-debug.apk`.
+The current packaged artifact is
+`app/build/outputs/apk/debug/minimal-launcher-0.4.2-debug.apk`.
 
 ## Run
 
