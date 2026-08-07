@@ -70,4 +70,35 @@ class ScreenTimePolicyTest {
         assertEquals("less than one minute", ScreenTimeFormatter.spoken(1_000L))
         assertEquals("1 hour 1 minute", ScreenTimeFormatter.spoken(61 * 60_000L))
     }
+
+    @Test fun `detailed usage merges filters and deterministically ranks packages`() {
+        assertEquals(
+            listOf(
+                AppUsageDuration("video.app", 95_000L),
+                AppUsageDuration("chat.app", 90_000L),
+                AppUsageDuration("maps.app", 90_000L),
+            ),
+            DetailedUsagePolicy.rank(
+                usage = listOf(
+                    AppUsageDuration("chat.app", 60_000L),
+                    AppUsageDuration("video.app", 95_000L),
+                    AppUsageDuration("chat.app", 30_000L),
+                    AppUsageDuration("maps.app", 90_000L),
+                    AppUsageDuration("system.service", 500_000L),
+                    AppUsageDuration("launcher", 800_000L),
+                    AppUsageDuration("unused.app", 0L),
+                ),
+                eligiblePackages = setOf("chat.app", "video.app", "maps.app", "launcher", "unused.app"),
+                excludedPackage = "launcher",
+            ),
+        )
+    }
+
+    @Test fun `detailed usage honors its visible row limit`() {
+        val usage = (1..8).map { AppUsageDuration("app.$it", it * 10_000L) }
+        assertEquals(
+            listOf("app.8", "app.7", "app.6", "app.5"),
+            DetailedUsagePolicy.rank(usage, usage.map { it.packageName }.toSet(), "launcher").map { it.packageName },
+        )
+    }
 }

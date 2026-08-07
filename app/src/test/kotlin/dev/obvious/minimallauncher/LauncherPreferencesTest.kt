@@ -41,6 +41,7 @@ class LauncherPreferencesTest {
             drawerSurfaceColor = 0xFF405060.toInt()
             showBuiltInClock = false
             showScreenTime = true
+            showDetailedUsage = true
             autoShowKeyboard = false
             showFilterBar = false
             showDrawerGradient = false
@@ -77,6 +78,7 @@ class LauncherPreferencesTest {
         assertEquals(0xFF405060.toInt(), restored.drawerSurfaceColor)
         assertFalse(restored.showBuiltInClock)
         assertTrue(restored.showScreenTime)
+        assertTrue(restored.showDetailedUsage)
         assertFalse(restored.autoShowKeyboard)
         assertFalse(restored.showFilterBar)
         assertFalse(restored.showDrawerGradient)
@@ -122,6 +124,7 @@ class LauncherPreferencesTest {
         assertEquals(0xFF101416.toInt(), preferences.drawerSurfaceColor)
         assertTrue(preferences.showBuiltInClock)
         assertFalse(preferences.showScreenTime)
+        assertFalse(preferences.showDetailedUsage)
         assertTrue(preferences.autoShowKeyboard)
         assertTrue(preferences.showFilterBar)
         assertTrue(preferences.showDrawerGradient)

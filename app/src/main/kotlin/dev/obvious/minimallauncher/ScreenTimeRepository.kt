@@ -14,6 +14,26 @@ data class ScreenStateEvent(
     val interactive: Boolean,
 )
 
+data class AppUsageDuration(
+    val packageName: String,
+    val durationMillis: Long,
+)
+
+object DetailedUsagePolicy {
+    fun rank(
+        usage: List<AppUsageDuration>,
+        eligiblePackages: Set<String>,
+        excludedPackage: String,
+        limit: Int = 4,
+    ): List<AppUsageDuration> = usage
+        .asSequence()
+        .filter { it.packageName in eligiblePackages && it.packageName != excludedPackage && it.durationMillis > 0L }
+        .groupBy { it.packageName }
+        .map { (packageName, entries) -> AppUsageDuration(packageName, entries.sumOf { it.durationMillis }) }
+        .sortedWith(compareByDescending<AppUsageDuration> { it.durationMillis }.thenBy { it.packageName })
+        .take(limit.coerceAtLeast(0))
+}
+
 object ScreenTimeCalculator {
     fun calculate(
         dayStartMillis: Long,
@@ -67,7 +87,10 @@ object ScreenTimeFormatter {
 }
 
 sealed interface ScreenTimeResult {
-    data class Available(val durationMillis: Long) : ScreenTimeResult
+    data class Available(
+        val durationMillis: Long,
+        val topApps: List<AppUsageDuration> = emptyList(),
+    ) : ScreenTimeResult
     data object PermissionRequired : ScreenTimeResult
     data object Unavailable : ScreenTimeResult
 }
@@ -85,7 +108,11 @@ class ScreenTimeRepository(context: Context) : AutoCloseable {
         applicationContext.packageName,
     ) == AppOpsManager.MODE_ALLOWED
 
-    fun load(nowMillis: Long = System.currentTimeMillis(), callback: (ScreenTimeResult) -> Unit) {
+    fun load(
+        nowMillis: Long = System.currentTimeMillis(),
+        detailedUsagePackages: Set<String> = emptySet(),
+        callback: (ScreenTimeResult) -> Unit,
+    ) {
         executor.execute {
             if (!hasUsageAccess()) {
                 callback(ScreenTimeResult.PermissionRequired)
@@ -113,12 +140,25 @@ class ScreenTimeRepository(context: Context) : AutoCloseable {
                     }
                 }
                 ScreenTimeResult.Available(
-                    ScreenTimeCalculator.calculate(
+                    durationMillis = ScreenTimeCalculator.calculate(
                         dayStart,
                         nowMillis,
                         powerManager.isInteractive,
                         stateEvents,
                     ),
+                    topApps = if (detailedUsagePackages.isEmpty()) {
+                        emptyList()
+                    } else {
+                        DetailedUsagePolicy.rank(
+                            usage = usageStatsManager.queryUsageStats(
+                                UsageStatsManager.INTERVAL_DAILY,
+                                dayStart,
+                                nowMillis,
+                            ).orEmpty().map { AppUsageDuration(it.packageName, it.totalTimeInForeground) },
+                            eligiblePackages = detailedUsagePackages,
+                            excludedPackage = applicationContext.packageName,
+                        )
+                    },
                 )
             }.getOrDefault(ScreenTimeResult.Unavailable))
         }
