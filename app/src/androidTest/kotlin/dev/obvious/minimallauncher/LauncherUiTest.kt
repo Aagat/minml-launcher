@@ -244,6 +244,9 @@ class LauncherUiTest {
         val originalBounds = clock.visibleBounds
         clock.visibleCenter.let { center -> device.swipe(center.x, center.y, center.x, center.y, 160) }
         waitForResource("widget_editor_done")
+        assertTrue(
+            device.findObject(By.text(Pattern.compile("\\d+,\\d+ · \\d+×\\d+ dp"))) == null,
+        )
 
         waitForResource("widget_editor_resize").visibleCenter.let { handle ->
             device.swipe(handle.x, handle.y, handle.x - 180, handle.y + 40, 24)
