@@ -2,8 +2,8 @@
 
 A native, text-first Android home application built around the approved Minimal
 Launcher design. It displays the current system wallpaper, a clock/date panel,
-configurable right-aligned favorites, optional weather, widgets, and a searchable
-right-aligned app drawer with built-in and user-defined filters.
+configurable right-aligned favorites, optional weather and screen-time widgets,
+and a searchable right-aligned app drawer with built-in and user-defined filters.
 
 The launcher uses Android platform APIs directly: `LauncherApps` for launchable
 activities and user profiles, the system IME for search, `AppWidgetHost` and the
@@ -28,7 +28,7 @@ compile SDK is 37.
 
 The generic debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
 The current locally installable release artifact is
-`app/build/outputs/apk/release/minimal-launcher-0.6.0-release-local.apk`.
+`app/build/outputs/apk/release/minimal-launcher-0.7.0-release-local.apk`.
 It is a non-debuggable release build signed with this workstation's Android
 debug certificate for local testing and is not suitable for public
 distribution.
@@ -43,10 +43,10 @@ Run the complete repeatable launcher check with:
 
 The runner uses an already connected emulator or starts `medium_phone`
 headlessly with the stable `swangle` renderer. It performs a clean debug build,
-all JVM tests, Android lint, and five native UI Automator flows covering Home
+all JVM tests, Android lint, and six native UI Automator flows covering Home
 registration/settings, preference restoration, drawer rendering modes,
-search/IME/app launch/filter/dismiss gestures, and rotation. It then writes one
-self-contained summary to
+search/IME/app launch/filter/dismiss gestures, rotation, and the screen-time
+widget lifecycle. It then writes one self-contained summary to
 `app/build/reports/launcher-ui/index.html`, with links to the detailed Gradle
 reports plus screenshots, the final UI hierarchy, device metadata,
 build/install logs, and filtered logcat output.
@@ -122,6 +122,11 @@ The emulator process crashed during injected drawer/keyboard input when using
   directly as rows in Home screen settings; only coordinate text entry uses a
   focused dialog.
 - Clock format can follow Android or be forced to 12-hour or 24-hour display.
+- **Home screen → Show screen time** adds a compact, right-aligned built-in
+  widget for today's screen-on duration. It is off by default and uses Android's
+  system Usage Access screen; the launcher reads screen interactive/non-
+  interactive events locally and does not upload usage data. Long-press the
+  widget to hide it.
 - Typography can use the bundled Geist Mono Nerd Font, Geist, Inter, IBM Plex
   Sans, Manrope, Space Grotesk, B612, B612 Mono, Android Monospace, or Android
   Sans. Geist Mono remains the default. The bundled font license texts are
@@ -140,8 +145,8 @@ The emulator process crashed during injected drawer/keyboard input when using
   select Auto, Transparent, or Gradient to restore wallpaper rendering. **Solid
   color** edits the saved color without silently enabling it.
 - Long-press an Android widget and choose **remove**. Long-press the built-in
-  clock/date and choose **hide**; restore it with **Home screen → Show built-in
-  clock**.
+  clock/date or screen-time widget and choose **hide**; restore either from
+  **Home screen** settings.
 - Long-press empty Home space to open persistent, full-screen settings organized
   into Home screen, App drawer, Appearance, System, and About. Editors return to
   their category, Back returns one level at a time, and Android system surfaces
