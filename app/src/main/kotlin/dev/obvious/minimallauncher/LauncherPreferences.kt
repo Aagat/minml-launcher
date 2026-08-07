@@ -99,6 +99,30 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
         get() = backend.getBoolean(KEY_AUTO_SHOW_KEYBOARD, true)
         set(value) = backend.putBoolean(KEY_AUTO_SHOW_KEYBOARD, value)
 
+    var showFilterBar: Boolean
+        get() = backend.getBoolean(KEY_SHOW_FILTER_BAR, true)
+        set(value) = backend.putBoolean(KEY_SHOW_FILTER_BAR, value)
+
+    var showDrawerGradient: Boolean
+        get() = backend.getBoolean(KEY_SHOW_DRAWER_GRADIENT, true)
+        set(value) = backend.putBoolean(KEY_SHOW_DRAWER_GRADIENT, value)
+
+    var showSearchUnderline: Boolean
+        get() = backend.getBoolean(KEY_SHOW_SEARCH_UNDERLINE, true)
+        set(value) = backend.putBoolean(KEY_SHOW_SEARCH_UNDERLINE, value)
+
+    var appListTopMarginDp: Int
+        get() = storedInt(KEY_APP_LIST_TOP_MARGIN, DEFAULT_APP_LIST_TOP_MARGIN, 24, 96)
+        set(value) = backend.putString(KEY_APP_LIST_TOP_MARGIN, value.coerceIn(24, 96).toString())
+
+    var appListRightMarginDp: Int
+        get() = storedInt(KEY_APP_LIST_RIGHT_MARGIN, DEFAULT_APP_LIST_RIGHT_MARGIN, 0, 64)
+        set(value) = backend.putString(KEY_APP_LIST_RIGHT_MARGIN, value.coerceIn(0, 64).toString())
+
+    var hideStatusBar: Boolean
+        get() = backend.getBoolean(KEY_HIDE_STATUS_BAR)
+        set(value) = backend.putBoolean(KEY_HIDE_STATUS_BAR, value)
+
     fun membership(filter: DrawerFilter): Set<String> =
         PreferenceCodec.decode(backend.getString(filterKey(filter))).toSet()
 
@@ -131,6 +155,8 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
         ?.toInt()
         ?: default
     private fun encodeColor(color: Int): String = (color.toLong() and 0xFFFFFFFFL).toString(16).padStart(8, '0')
+    private fun storedInt(key: String, default: Int, minimum: Int, maximum: Int): Int =
+        backend.getString(key, default.toString()).toIntOrNull()?.coerceIn(minimum, maximum) ?: default
 
     private companion object {
         const val KEY_FAVORITES = "favorites"
@@ -147,7 +173,15 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
         const val KEY_FONT_COLOR = "customization.font_color"
         const val KEY_ACCENT_COLOR = "customization.accent_color"
         const val KEY_AUTO_SHOW_KEYBOARD = "customization.auto_show_keyboard"
+        const val KEY_SHOW_FILTER_BAR = "customization.show_filter_bar"
+        const val KEY_SHOW_DRAWER_GRADIENT = "customization.show_drawer_gradient"
+        const val KEY_SHOW_SEARCH_UNDERLINE = "customization.show_search_underline"
+        const val KEY_APP_LIST_TOP_MARGIN = "customization.app_list_top_margin"
+        const val KEY_APP_LIST_RIGHT_MARGIN = "customization.app_list_right_margin"
+        const val KEY_HIDE_STATUS_BAR = "customization.hide_status_bar"
         const val DEFAULT_FONT_COLOR = 0xFFF4F4F2.toInt()
         const val DEFAULT_ACCENT_COLOR = 0xFFB7F36B.toInt()
+        const val DEFAULT_APP_LIST_TOP_MARGIN = 24
+        const val DEFAULT_APP_LIST_RIGHT_MARGIN = 20
     }
 }

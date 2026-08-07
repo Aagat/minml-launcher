@@ -69,6 +69,8 @@ class MainActivity : Activity() {
     private lateinit var drawerBottomSurface: View
     private lateinit var filtersView: LinearLayout
     private lateinit var filtersScroller: HorizontalScrollView
+    private lateinit var searchFrame: FrameLayout
+    private lateinit var searchUnderline: View
     private lateinit var searchInput: EditText
     private lateinit var scrollTrack: View
     private lateinit var scrollThumb: View
@@ -120,6 +122,7 @@ class MainActivity : Activity() {
 
         buildUi()
         setContentView(root)
+        root.post(::applyStatusBarPreference)
         applyAppearance()
         restoreCachedCatalog()
         if (android.os.Build.VERSION.SDK_INT >= 33) {
@@ -151,6 +154,7 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        applyStatusBarPreference()
         if (::homeRolePrompt.isInitialized) updateHomeRolePrompt()
     }
 
@@ -400,7 +404,7 @@ class MainActivity : Activity() {
         rebuildFilterButtons()
         drawer.addView(filtersScroller, FrameLayout.LayoutParams(dp(300), dp(48)).apply { gravity = Gravity.END or Gravity.BOTTOM })
 
-        val searchFrame = FrameLayout(this)
+        searchFrame = FrameLayout(this)
         val searchRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -440,7 +444,11 @@ class MainActivity : Activity() {
         }
         searchRow.addView(searchInput, LinearLayout.LayoutParams(0, MATCH, 1f))
         searchFrame.addView(searchRow, FrameLayout.LayoutParams(MATCH, MATCH))
-        searchFrame.addView(View(this).apply { setBackgroundColor(accentColor) }, FrameLayout.LayoutParams(MATCH, dp(1)).apply { gravity = Gravity.BOTTOM })
+        searchUnderline = View(this).apply {
+            setBackgroundColor(accentColor)
+            visibility = if (preferences.showSearchUnderline) View.VISIBLE else View.GONE
+        }
+        searchFrame.addView(searchUnderline, FrameLayout.LayoutParams(MATCH, dp(1)).apply { gravity = Gravity.BOTTOM })
         drawer.addView(searchFrame, FrameLayout.LayoutParams(dp(300), dp(48)).apply { gravity = Gravity.END or Gravity.BOTTOM })
     }
 
@@ -474,10 +482,10 @@ class MainActivity : Activity() {
         val availableHeight = drawer.height - drawer.paddingTop - drawer.paddingBottom
         val availableWidth = drawer.width - drawer.paddingLeft - drawer.paddingRight
         val columnWidth = min(dp(300), max(dp(220), availableWidth - dp(32)))
-        val listTop = min(dp(24), max(0, availableHeight / 16))
-        val controlsHeight = dp(102)
+        val controlsHeight = dp(if (preferences.showFilterBar) 102 else 54)
+        val listTop = min(dp(preferences.appListTopMarginDp), max(0, availableHeight - controlsHeight))
         val listHeight = max(0, availableHeight - listTop - controlsHeight)
-        val right = dp(12)
+        val right = dp(preferences.appListRightMarginDp)
 
         appList.layoutParams = (appList.layoutParams as FrameLayout.LayoutParams).apply {
             width = columnWidth
@@ -510,17 +518,18 @@ class MainActivity : Activity() {
             gravity = Gravity.BOTTOM
             bottomMargin = controlsHeight
         }
+        drawerFade.visibility = if (preferences.showDrawerGradient) View.VISIBLE else View.GONE
         filtersScroller.layoutParams = (filtersScroller.layoutParams as FrameLayout.LayoutParams).apply {
             width = columnWidth
             gravity = Gravity.END or Gravity.BOTTOM
             rightMargin = right
             bottomMargin = dp(54)
         }
-        val searchFrame = searchInput.parent.parent as View
+        filtersScroller.visibility = if (preferences.showFilterBar) View.VISIBLE else View.GONE
         searchFrame.layoutParams = (searchFrame.layoutParams as FrameLayout.LayoutParams).apply {
             width = columnWidth
             gravity = Gravity.END or Gravity.BOTTOM
-            rightMargin = right
+            rightMargin = right + dp(12)
             bottomMargin = dp(6)
         }
         scrollTrack.layoutParams = (scrollTrack.layoutParams as FrameLayout.LayoutParams).apply {
@@ -638,7 +647,8 @@ class MainActivity : Activity() {
         if (!::searchInput.isInitialized) return
         val scoped = FilterEngine.apply(allApps, currentFilter, membership(currentFilter))
         visibleApps = AppSearch.rank(scoped, searchInput.text?.toString().orEmpty())
-        drawerHeader.text = if (scoped.size >= 24) "apps / ${scoped.size}" else "apps"
+        drawerHeader.text = "${currentFilter.displayName.lowercase(Locale.getDefault())}/${scoped.size}"
+        drawerHeader.setTextColor(accentColor)
         adapter.notifyDataSetChanged()
         filtersView.children().forEach { button ->
             val spec = button.tag as FilterSpec
@@ -826,6 +836,23 @@ class MainActivity : Activity() {
         dateView.setTextColor(if (appearance == Appearance.TRANSPARENT) secondaryColor else wallpaperSecondaryColor)
     }
 
+    private fun applyStatusBarPreference() {
+        if (android.os.Build.VERSION.SDK_INT >= 30) {
+            window.insetsController?.apply {
+                systemBarsBehavior = android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                if (preferences.hideStatusBar) hide(WindowInsets.Type.statusBars()) else show(WindowInsets.Type.statusBars())
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = (
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                    View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                    View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                    (if (preferences.hideStatusBar) View.SYSTEM_UI_FLAG_FULLSCREEN else 0)
+                )
+        }
+    }
+
     private fun showLauncherSettings() {
         val items = arrayOf(
             "add widget · system",
@@ -895,6 +922,11 @@ class MainActivity : Activity() {
             "accent color · ${formatColor(preferences.accentColor)}",
             "appearance · ${preferences.appearance.name.lowercase()}",
             "keyboard on drawer · ${if (preferences.autoShowKeyboard) "on" else "off"}",
+            "filter labels · ${if (preferences.showFilterBar) "shown" else "hidden"}",
+            "bottom gradient · ${if (preferences.showDrawerGradient) "on" else "off"}",
+            "search underline · ${if (preferences.showSearchUnderline) "on" else "off"}",
+            "app list margins · ${preferences.appListTopMarginDp} / ${preferences.appListRightMarginDp} dp",
+            "status bar · ${if (preferences.hideStatusBar) "hidden" else "shown"}",
         )
         AlertDialog.Builder(this)
             .setTitle("customization")
@@ -912,8 +944,78 @@ class MainActivity : Activity() {
                             Toast.LENGTH_SHORT,
                         ).show()
                     }
+                    5 -> {
+                        preferences.showFilterBar = !preferences.showFilterBar
+                        recreate()
+                    }
+                    6 -> {
+                        preferences.showDrawerGradient = !preferences.showDrawerGradient
+                        recreate()
+                    }
+                    7 -> {
+                        preferences.showSearchUnderline = !preferences.showSearchUnderline
+                        recreate()
+                    }
+                    8 -> showAppListMarginsEditor()
+                    9 -> {
+                        preferences.hideStatusBar = !preferences.hideStatusBar
+                        recreate()
+                    }
                 }
             }
+            .show()
+    }
+
+    private fun showAppListMarginsEditor() {
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(8), dp(24), 0)
+        }
+        val topValue = styledText(12f, primaryColor, mediumTypeface).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            text = "Top margin · ${preferences.appListTopMarginDp} dp"
+        }
+        val topSlider = SeekBar(this).apply {
+            max = 72
+            progress = preferences.appListTopMarginDp - 24
+            contentDescription = "App list top margin"
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    topValue.text = "Top margin · ${progress + 24} dp"
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+        }
+        val rightValue = styledText(12f, primaryColor, mediumTypeface).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            text = "Right margin · ${preferences.appListRightMarginDp} dp"
+        }
+        val rightSlider = SeekBar(this).apply {
+            max = 64
+            progress = preferences.appListRightMarginDp
+            contentDescription = "App list right margin"
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    rightValue.text = "Right margin · $progress dp"
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+        }
+        content.addView(topValue, LinearLayout.LayoutParams(MATCH, WRAP))
+        content.addView(topSlider, LinearLayout.LayoutParams(MATCH, WRAP))
+        content.addView(rightValue, LinearLayout.LayoutParams(MATCH, WRAP))
+        content.addView(rightSlider, LinearLayout.LayoutParams(MATCH, WRAP))
+        AlertDialog.Builder(this)
+            .setTitle("app list margins")
+            .setView(content)
+            .setPositiveButton("save") { _, _ ->
+                preferences.appListTopMarginDp = topSlider.progress + 24
+                preferences.appListRightMarginDp = rightSlider.progress
+                recreate()
+            }
+            .setNegativeButton("cancel", null)
             .show()
     }
 

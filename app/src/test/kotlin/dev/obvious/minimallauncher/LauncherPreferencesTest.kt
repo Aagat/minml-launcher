@@ -22,6 +22,12 @@ class LauncherPreferencesTest {
             fontColor = 0xFF112233.toInt()
             accentColor = 0xFFABCDEF.toInt()
             autoShowKeyboard = false
+            showFilterBar = false
+            showDrawerGradient = false
+            showSearchUnderline = false
+            appListTopMarginDp = 36
+            appListRightMarginDp = 28
+            hideStatusBar = true
             setMembership(DrawerFilter.DAILY, listOf("b", "a"))
         }
 
@@ -38,6 +44,12 @@ class LauncherPreferencesTest {
         assertEquals(0xFF112233.toInt(), restored.fontColor)
         assertEquals(0xFFABCDEF.toInt(), restored.accentColor)
         assertFalse(restored.autoShowKeyboard)
+        assertFalse(restored.showFilterBar)
+        assertFalse(restored.showDrawerGradient)
+        assertFalse(restored.showSearchUnderline)
+        assertEquals(36, restored.appListTopMarginDp)
+        assertEquals(28, restored.appListRightMarginDp)
+        assertTrue(restored.hideStatusBar)
         assertEquals(setOf("a", "b"), restored.membership(DrawerFilter.DAILY))
         assertTrue(restored.isMembershipInitialized(DrawerFilter.DAILY))
         assertFalse(restored.isMembershipInitialized(DrawerFilter.WORK))
@@ -66,8 +78,18 @@ class LauncherPreferencesTest {
         assertEquals(0xFFF4F4F2.toInt(), preferences.fontColor)
         assertEquals(0xFFB7F36B.toInt(), preferences.accentColor)
         assertTrue(preferences.autoShowKeyboard)
+        assertTrue(preferences.showFilterBar)
+        assertTrue(preferences.showDrawerGradient)
+        assertTrue(preferences.showSearchUnderline)
+        assertEquals(24, preferences.appListTopMarginDp)
+        assertEquals(20, preferences.appListRightMarginDp)
+        assertFalse(preferences.hideStatusBar)
         preferences.fontScalePercent = 300
+        preferences.appListTopMarginDp = 300
+        preferences.appListRightMarginDp = -3
         assertEquals(150, preferences.fontScalePercent)
+        assertEquals(96, preferences.appListTopMarginDp)
+        assertEquals(0, preferences.appListRightMarginDp)
     }
 
     private class MapBackend : PreferenceBackend {
