@@ -51,13 +51,21 @@ object DrawerGesturePolicy {
         val velocityDpPerSecond: Float,
     )
 
-    fun dismissThresholds(sensitivity: Int): DismissThresholds {
-        val normalized = sensitivity.coerceIn(0, 100) / 100f
+    fun dismissThresholds(distanceSensitivity: Int, speedSensitivity: Int): DismissThresholds {
+        val distance = distanceSensitivity.coerceIn(0, 100) / 100f
+        val speed = speedSensitivity.coerceIn(0, 100) / 100f
         return DismissThresholds(
-            distanceDp = 180f - 108f * normalized,
-            velocityDpPerSecond = 1_000f - 600f * normalized,
+            distanceDp = 180f - 148f * distance,
+            velocityDpPerSecond = 1_200f - 1_200f * speed,
         )
     }
+
+    fun isVerticalSwipe(
+        dx: Float,
+        dy: Float,
+        minimumDistance: Float,
+        dominance: Float = 1.15f,
+    ): Boolean = dy >= minimumDistance && dy > abs(dx) * dominance
 
     fun filterStep(
         dx: Float,

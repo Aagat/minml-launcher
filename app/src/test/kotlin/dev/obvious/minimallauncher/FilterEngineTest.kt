@@ -4,7 +4,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class FilterEngineTest {
-    private val apps = listOf(testApp("one", "One"), testApp("two", "Two"), testApp("three", "Three"))
+    private val apps = listOf(
+        testApp("one", "One"),
+        testApp("two", "Two", work = true),
+        testApp("three", "Three"),
+        testApp("four", "Four", work = true),
+    )
     private val memberships = mapOf(
         DrawerFilter.DAILY to setOf("one", "three"),
         DrawerFilter.WORK to setOf("two"),
@@ -12,9 +17,9 @@ class FilterEngineTest {
     )
 
     @Test fun `all ignores membership while custom scopes use persisted ids`() {
-        assertEquals(3, FilterEngine.apply(apps, DrawerFilter.ALL, memberships).size)
+        assertEquals(listOf("one", "three"), FilterEngine.apply(apps, DrawerFilter.ALL, memberships).map { it.stableId })
         assertEquals(listOf("one", "three"), FilterEngine.apply(apps, DrawerFilter.DAILY, memberships).map { it.stableId })
-        assertEquals(listOf("two"), FilterEngine.apply(apps, DrawerFilter.WORK, memberships).map { it.stableId })
+        assertEquals(listOf("two", "four"), FilterEngine.apply(apps, DrawerFilter.WORK, memberships).map { it.stableId })
         assertEquals(emptyList<AppEntry>(), FilterEngine.apply(apps, DrawerFilter.MEDIA, memberships))
     }
 

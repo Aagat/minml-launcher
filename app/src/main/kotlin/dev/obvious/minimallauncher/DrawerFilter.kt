@@ -19,10 +19,12 @@ object FilterEngine {
         apps: List<AppEntry>,
         filter: DrawerFilter,
         memberships: Map<DrawerFilter, Set<String>>,
-    ): List<AppEntry> = if (filter == DrawerFilter.ALL) {
-        apps
-    } else {
-        val ids = memberships[filter].orEmpty()
-        apps.filter { it.stableId in ids }
+    ): List<AppEntry> = when (filter) {
+        DrawerFilter.ALL -> apps.filterNot { it.isWorkProfile }
+        DrawerFilter.WORK -> apps.filter { it.isWorkProfile }
+        DrawerFilter.DAILY, DrawerFilter.MEDIA -> {
+            val ids = memberships[filter].orEmpty()
+            apps.filter { !it.isWorkProfile && it.stableId in ids }
+        }
     }
 }

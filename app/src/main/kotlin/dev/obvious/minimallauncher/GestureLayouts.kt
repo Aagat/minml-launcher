@@ -17,10 +17,12 @@ class FilterGestureLayout @JvmOverloads constructor(
     var onFilterSwipe: ((Int) -> Unit)? = null
     var onSwipeDown: (() -> Unit)? = null
     var canSwipeDown: (() -> Boolean)? = null
-    var dismissSensitivity: Int = 65
+    var useImeDismissThreshold: (() -> Boolean)? = null
+    var dismissDistanceSensitivity: Int = 65
+    var dismissSpeedSensitivity: Int = 65
     private val density = resources.displayMetrics.density
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop.toFloat()
-    private val gesture = GestureStateMachine(max(touchSlop * 3f, density * 24f), dominance = 1.25f)
+    private val gesture = GestureStateMachine(touchSlop, dominance = 1.25f)
     private val filterSwipeDistance = max(touchSlop * 6f, density * 72f)
     private var downX = 0f
     private var downY = 0f
@@ -61,9 +63,17 @@ class FilterGestureLayout @JvmOverloads constructor(
                 val dx = event.x - downX
                 val dy = event.y - downY
                 val filterStep = DrawerGesturePolicy.filterStep(dx, dy, filterSwipeDistance)
-                val dismissThresholds = DrawerGesturePolicy.dismissThresholds(dismissSensitivity)
+                val dismissThresholds = DrawerGesturePolicy.dismissThresholds(
+                    dismissDistanceSensitivity,
+                    dismissSpeedSensitivity,
+                )
                 when {
                     filterStep != null -> onFilterSwipe?.invoke(filterStep)
+                    swipeDownEligible && useImeDismissThreshold?.invoke() == true && DrawerGesturePolicy.isVerticalSwipe(
+                        dx = dx,
+                        dy = dy,
+                        minimumDistance = touchSlop * 3f,
+                    ) -> onSwipeDown?.invoke()
                     swipeDownEligible && DrawerGesturePolicy.isDismissGesture(
                         dx = dx,
                         dy = dy,

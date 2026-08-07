@@ -14,7 +14,8 @@ class LauncherPreferencesTest {
             weatherEnabled = true
             weatherLatitude = "41.3874"
             weatherLongitude = "2.1686"
-            drawerDismissSensitivity = 78
+            drawerDismissDistanceSensitivity = 78
+            drawerDismissSpeedSensitivity = 84
             setMembership(DrawerFilter.DAILY, listOf("b", "a"))
         }
 
@@ -23,7 +24,8 @@ class LauncherPreferencesTest {
         assertEquals(Appearance.GRADIENT, restored.appearance)
         assertTrue(restored.weatherEnabled)
         assertEquals("41.3874", restored.weatherLatitude)
-        assertEquals(78, restored.drawerDismissSensitivity)
+        assertEquals(78, restored.drawerDismissDistanceSensitivity)
+        assertEquals(84, restored.drawerDismissSpeedSensitivity)
         assertEquals(setOf("a", "b"), restored.membership(DrawerFilter.DAILY))
         assertTrue(restored.isMembershipInitialized(DrawerFilter.DAILY))
         assertFalse(restored.isMembershipInitialized(DrawerFilter.WORK))
@@ -38,11 +40,12 @@ class LauncherPreferencesTest {
     @Test fun `drawer sensitivity defaults and clamps to supported range`() {
         val backend = MapBackend()
         val preferences = LauncherPreferences(backend)
-        assertEquals(65, preferences.drawerDismissSensitivity)
-        preferences.drawerDismissSensitivity = 140
-        assertEquals(100, preferences.drawerDismissSensitivity)
-        preferences.drawerDismissSensitivity = -20
-        assertEquals(0, preferences.drawerDismissSensitivity)
+        assertEquals(65, preferences.drawerDismissDistanceSensitivity)
+        assertEquals(65, preferences.drawerDismissSpeedSensitivity)
+        preferences.drawerDismissDistanceSensitivity = 140
+        preferences.drawerDismissSpeedSensitivity = -20
+        assertEquals(100, preferences.drawerDismissDistanceSensitivity)
+        assertEquals(0, preferences.drawerDismissSpeedSensitivity)
     }
 
     private class MapBackend : PreferenceBackend {

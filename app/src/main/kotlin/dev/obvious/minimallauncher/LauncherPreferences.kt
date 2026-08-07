@@ -63,12 +63,13 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
         get() = backend.getString(KEY_WEATHER_LONGITUDE)
         set(value) = backend.putString(KEY_WEATHER_LONGITUDE, value)
 
-    var drawerDismissSensitivity: Int
-        get() = backend.getString(KEY_DRAWER_DISMISS_SENSITIVITY, DEFAULT_DRAWER_DISMISS_SENSITIVITY.toString())
-            .toIntOrNull()
-            ?.coerceIn(0, 100)
-            ?: DEFAULT_DRAWER_DISMISS_SENSITIVITY
-        set(value) = backend.putString(KEY_DRAWER_DISMISS_SENSITIVITY, value.coerceIn(0, 100).toString())
+    var drawerDismissDistanceSensitivity: Int
+        get() = sensitivity(KEY_DRAWER_DISMISS_DISTANCE_SENSITIVITY)
+        set(value) = backend.putString(KEY_DRAWER_DISMISS_DISTANCE_SENSITIVITY, value.coerceIn(0, 100).toString())
+
+    var drawerDismissSpeedSensitivity: Int
+        get() = sensitivity(KEY_DRAWER_DISMISS_SPEED_SENSITIVITY)
+        set(value) = backend.putString(KEY_DRAWER_DISMISS_SPEED_SENSITIVITY, value.coerceIn(0, 100).toString())
 
     fun membership(filter: DrawerFilter): Set<String> =
         PreferenceCodec.decode(backend.getString(filterKey(filter))).toSet()
@@ -84,6 +85,10 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
 
     private fun filterKey(filter: DrawerFilter) = "filter.${filter.name.lowercase()}.members"
     private fun initializedKey(filter: DrawerFilter) = "filter.${filter.name.lowercase()}.initialized"
+    private fun sensitivity(key: String): Int {
+        val legacy = backend.getString(KEY_DRAWER_DISMISS_SENSITIVITY, DEFAULT_DRAWER_DISMISS_SENSITIVITY.toString())
+        return backend.getString(key, legacy).toIntOrNull()?.coerceIn(0, 100) ?: DEFAULT_DRAWER_DISMISS_SENSITIVITY
+    }
 
     private companion object {
         const val KEY_FAVORITES = "favorites"
@@ -92,6 +97,8 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
         const val KEY_WEATHER_LATITUDE = "weather.latitude"
         const val KEY_WEATHER_LONGITUDE = "weather.longitude"
         const val KEY_DRAWER_DISMISS_SENSITIVITY = "drawer.dismiss.sensitivity"
+        const val KEY_DRAWER_DISMISS_DISTANCE_SENSITIVITY = "drawer.dismiss.distance_sensitivity"
+        const val KEY_DRAWER_DISMISS_SPEED_SENSITIVITY = "drawer.dismiss.speed_sensitivity"
         const val DEFAULT_DRAWER_DISMISS_SENSITIVITY = 65
     }
 }

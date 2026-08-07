@@ -290,7 +290,9 @@ class MainActivity : Activity() {
             onFilterSwipe = { cycleFilter(it) }
             onSwipeDown = { handleDrawerSwipeDown() }
             canSwipeDown = { !appList.canScrollVertically(-1) }
-            dismissSensitivity = preferences.drawerDismissSensitivity
+            useImeDismissThreshold = { imeVisible }
+            dismissDistanceSensitivity = preferences.drawerDismissDistanceSensitivity
+            dismissSpeedSensitivity = preferences.drawerDismissSpeedSensitivity
         }
 
         appList = ListView(this).apply {
@@ -773,7 +775,7 @@ class MainActivity : Activity() {
             "add widget · system",
             "favorites",
             "filters",
-            "drawer dismissal · ${preferences.drawerDismissSensitivity}%",
+            "drawer dismissal · ${preferences.drawerDismissDistanceSensitivity}% / ${preferences.drawerDismissSpeedSensitivity}%",
             "appearance · ${preferences.appearance.name.lowercase()}",
             "weather · ${if (preferences.weatherEnabled) "on" else "off"}",
             "permissions · system",
@@ -830,36 +832,57 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(24), dp(8), dp(24), 0)
         }
-        val value = styledText(12f, PRIMARY, mediumTypeface).apply {
+        val distanceValue = styledText(12f, PRIMARY, mediumTypeface).apply {
             gravity = Gravity.CENTER_HORIZONTAL
-            text = getString(R.string.drawer_dismiss_sensitivity_value, preferences.drawerDismissSensitivity)
+            text = getString(R.string.drawer_dismiss_distance_value, preferences.drawerDismissDistanceSensitivity)
         }
-        val guidance = styledText(10f, SECONDARY, regularTypeface).apply {
-            gravity = Gravity.CENTER_HORIZONTAL
-            text = getString(R.string.drawer_dismiss_sensitivity_guidance)
-        }
-        val slider = SeekBar(this).apply {
+        val distanceSlider = SeekBar(this).apply {
             max = 100
-            progress = preferences.drawerDismissSensitivity
-            contentDescription = getString(R.string.drawer_dismiss_sensitivity)
+            progress = preferences.drawerDismissDistanceSensitivity
+            contentDescription = getString(R.string.drawer_dismiss_distance)
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                    value.text = getString(R.string.drawer_dismiss_sensitivity_value, progress)
+                    distanceValue.text = getString(R.string.drawer_dismiss_distance_value, progress)
                 }
 
                 override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
                 override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
             })
         }
-        content.addView(value, LinearLayout.LayoutParams(MATCH, WRAP))
-        content.addView(slider, LinearLayout.LayoutParams(MATCH, WRAP))
+        val speedValue = styledText(12f, PRIMARY, mediumTypeface).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            text = getString(R.string.drawer_dismiss_speed_value, preferences.drawerDismissSpeedSensitivity)
+        }
+        val speedSlider = SeekBar(this).apply {
+            max = 100
+            progress = preferences.drawerDismissSpeedSensitivity
+            contentDescription = getString(R.string.drawer_dismiss_speed)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    speedValue.text = getString(R.string.drawer_dismiss_speed_value, progress)
+                }
+
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+        }
+        val guidance = styledText(10f, SECONDARY, regularTypeface).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            text = getString(R.string.drawer_dismiss_sensitivity_guidance)
+        }
+        content.addView(distanceValue, LinearLayout.LayoutParams(MATCH, WRAP))
+        content.addView(distanceSlider, LinearLayout.LayoutParams(MATCH, WRAP))
+        content.addView(speedValue, LinearLayout.LayoutParams(MATCH, WRAP))
+        content.addView(speedSlider, LinearLayout.LayoutParams(MATCH, WRAP))
         content.addView(guidance, LinearLayout.LayoutParams(MATCH, WRAP))
         AlertDialog.Builder(this)
             .setTitle(getString(R.string.drawer_dismiss_sensitivity))
             .setView(content)
             .setPositiveButton("save") { _, _ ->
-                preferences.drawerDismissSensitivity = slider.progress
-                drawer.dismissSensitivity = slider.progress
+                preferences.drawerDismissDistanceSensitivity = distanceSlider.progress
+                preferences.drawerDismissSpeedSensitivity = speedSlider.progress
+                drawer.dismissDistanceSensitivity = distanceSlider.progress
+                drawer.dismissSpeedSensitivity = speedSlider.progress
             }
             .setNegativeButton("cancel", null)
             .show()
@@ -868,7 +891,7 @@ class MainActivity : Activity() {
     private fun showFavoriteEditor() {
         if (allApps.isEmpty()) return
         val selected = preferences.favorites.toMutableSet()
-        val labels = allApps.map { it.label }.toTypedArray()
+        val labels = allApps.map(::settingsAppLabel).toTypedArray()
         val checked = BooleanArray(allApps.size) { allApps[it].stableId in selected }
         AlertDialog.Builder(this)
             .setTitle("favorite apps")
@@ -892,7 +915,7 @@ class MainActivity : Activity() {
     private fun showFavoriteActions(index: Int, app: AppEntry) {
         val actions = arrayOf("move up", "move down", "remove")
         AlertDialog.Builder(this)
-            .setTitle(app.label)
+            .setTitle(settingsAppLabel(app))
             .setItems(actions) { _, which ->
                 val favorites = preferences.favorites.toMutableList()
                 val actualIndex = favorites.indexOf(app.stableId).takeIf { it >= 0 } ?: index
@@ -908,7 +931,7 @@ class MainActivity : Activity() {
     }
 
     private fun showFilterEditor() {
-        val editable = arrayOf(DrawerFilter.DAILY, DrawerFilter.WORK, DrawerFilter.MEDIA)
+        val editable = arrayOf(DrawerFilter.DAILY, DrawerFilter.MEDIA)
         AlertDialog.Builder(this)
             .setTitle("edit filter")
             .setItems(editable.map { it.displayName }.toTypedArray()) { _, which -> showMembershipEditor(editable[which]) }
@@ -916,12 +939,13 @@ class MainActivity : Activity() {
     }
 
     private fun showMembershipEditor(filter: DrawerFilter) {
+        val eligibleApps = allApps.filterNot { it.isWorkProfile }
         val selected = preferences.membership(filter).toMutableSet()
-        val checked = BooleanArray(allApps.size) { allApps[it].stableId in selected }
+        val checked = BooleanArray(eligibleApps.size) { eligibleApps[it].stableId in selected }
         AlertDialog.Builder(this)
             .setTitle("${filter.displayName} apps")
-            .setMultiChoiceItems(allApps.map { it.label }.toTypedArray(), checked) { _, which, enabled ->
-                if (enabled) selected += allApps[which].stableId else selected -= allApps[which].stableId
+            .setMultiChoiceItems(eligibleApps.map(::settingsAppLabel).toTypedArray(), checked) { _, which, enabled ->
+                if (enabled) selected += eligibleApps[which].stableId else selected -= eligibleApps[which].stableId
             }
             .setPositiveButton("save") { _, _ ->
                 preferences.setMembership(filter, selected)
@@ -930,6 +954,8 @@ class MainActivity : Activity() {
             .setNegativeButton("cancel", null)
             .show()
     }
+
+    private fun settingsAppLabel(app: AppEntry): String = app.label + if (app.isWorkProfile) " (w)" else ""
 
     private fun showWeatherEditor() {
         val form = LinearLayout(this).apply {

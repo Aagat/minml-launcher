@@ -9,6 +9,9 @@
     <string name="enable_open_meteo_weather">Enable Open-Meteo weather</string>
     <string name="weather_manual_disclosure">Manual coordinates are sent to Open-Meteo. Location permission is not required.</string>
     <string name="drawer_dismiss_sensitivity">Drawer dismissal sensitivity</string>
-    <string name="drawer_dismiss_sensitivity_value">Sensitivity · %1$d%%</string>
-    <string name="drawer_dismiss_sensitivity_guidance">Higher values make downward swipes easier to trigger.</string>
+    <string name="drawer_dismiss_distance">Drawer dismissal distance sensitivity</string>
+    <string name="drawer_dismiss_speed">Drawer dismissal speed sensitivity</string>
+    <string name="drawer_dismiss_distance_value">Distance sensitivity · %1$d%%</string>
+    <string name="drawer_dismiss_speed_value">Speed sensitivity · %1$d%%</string>
+    <string name="drawer_dismiss_sensitivity_guidance">Higher values make drawer-to-Home dismissal easier. Keyboard dismissal always matches the Home swipe-up gesture.</string>
 </resources>

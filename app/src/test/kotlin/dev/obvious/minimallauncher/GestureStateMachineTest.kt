@@ -43,16 +43,22 @@ class GestureStateMachineTest {
     }
 
     @Test fun `higher drawer sensitivity lowers distance and velocity thresholds`() {
-        val leastSensitive = DrawerGesturePolicy.dismissThresholds(0)
-        val default = DrawerGesturePolicy.dismissThresholds(65)
-        val mostSensitive = DrawerGesturePolicy.dismissThresholds(100)
+        val leastSensitive = DrawerGesturePolicy.dismissThresholds(0, 0)
+        val default = DrawerGesturePolicy.dismissThresholds(65, 65)
+        val mostSensitive = DrawerGesturePolicy.dismissThresholds(100, 100)
 
         assertEquals(180f, leastSensitive.distanceDp)
-        assertEquals(1_000f, leastSensitive.velocityDpPerSecond)
+        assertEquals(1_200f, leastSensitive.velocityDpPerSecond)
         assertEquals(true, default.distanceDp < leastSensitive.distanceDp)
         assertEquals(true, default.velocityDpPerSecond < leastSensitive.velocityDpPerSecond)
-        assertEquals(72f, mostSensitive.distanceDp)
-        assertEquals(400f, mostSensitive.velocityDpPerSecond)
+        assertEquals(32f, mostSensitive.distanceDp)
+        assertEquals(0f, mostSensitive.velocityDpPerSecond)
+    }
+
+    @Test fun `keyboard dismissal uses opening gesture geometry without velocity`() {
+        assertEquals(false, DrawerGesturePolicy.isVerticalSwipe(2f, 23f, 24f))
+        assertEquals(false, DrawerGesturePolicy.isVerticalSwipe(30f, 24f, 24f))
+        assertEquals(true, DrawerGesturePolicy.isVerticalSwipe(2f, 24f, 24f))
     }
 
     @Test fun `filter swipe requires deliberate final horizontal dominance`() {
