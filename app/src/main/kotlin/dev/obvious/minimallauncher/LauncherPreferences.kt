@@ -12,7 +12,10 @@ enum class LauncherFont(val displayName: String) {
     GEIST("Geist"),
     INTER("Inter"),
     IBM_PLEX_SANS("IBM Plex Sans"),
+    MANROPE("Manrope"),
     SPACE_GROTESK("Space Grotesk"),
+    B612_SANS("B612"),
+    B612_MONO("B612 Mono"),
     SYSTEM_MONO("Android Monospace"),
     SYSTEM_SANS("Android Sans"),
 }
