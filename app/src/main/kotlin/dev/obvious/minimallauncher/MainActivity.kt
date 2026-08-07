@@ -83,6 +83,8 @@ class MainActivity : Activity() {
     private lateinit var searchInput: EditText
     private lateinit var scrollTrack: View
     private lateinit var scrollThumb: View
+    private lateinit var settingsLayer: FrameLayout
+    private lateinit var settingsScroll: ScrollView
 
     private lateinit var regularTypeface: Typeface
     private lateinit var mediumTypeface: Typeface
@@ -106,6 +108,8 @@ class MainActivity : Activity() {
     private var weatherRequestedAt = 0L
     private var locationRequestInFlight = false
     private var locationDeniedThisSession = false
+    private var settingsPage: SettingsPage? = null
+    private val settingsScrollPositions = mutableMapOf<SettingsPage, Int>()
 
     private val wallpaperColorsChangedListener = WallpaperManager.OnColorsChangedListener { _: WallpaperColors?, _: Int ->
         if (::preferences.isInitialized && preferences.appearance == Appearance.AUTO && ::contrastOverlay.isInitialized) {
@@ -157,7 +161,10 @@ class MainActivity : Activity() {
             ?: FilterSpec.builtIn(DrawerFilter.ALL)
         val restoredDrawer = savedInstanceState?.getBoolean(STATE_DRAWER_OPEN, false) == true
         val restoredQuery = savedInstanceState?.getString(STATE_QUERY).orEmpty()
-        if (restoredDrawer) openDrawer(seed = restoredQuery)
+        val restoredSettingsPage = savedInstanceState?.getString(STATE_SETTINGS_PAGE)
+            ?.let { runCatching { SettingsPage.valueOf(it) }.getOrNull() }
+        if (restoredSettingsPage != null) showSettings(restoredSettingsPage)
+        else if (restoredDrawer) openDrawer(seed = restoredQuery)
 
         catalog = AppCatalog(this, ::onCatalogChanged)
         catalog.start()
@@ -178,6 +185,7 @@ class MainActivity : Activity() {
         super.onResume()
         applyStatusBarPreference()
         if (::homeRolePrompt.isInitialized) updateHomeRolePrompt()
+        if (settingsPage != null) renderSettingsPage()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -185,8 +193,9 @@ class MainActivity : Activity() {
         setIntent(intent)
         if (intent.action == Intent.ACTION_SEARCH) {
             openDrawer(seed = intent.getStringExtra(SearchManager.QUERY).orEmpty())
-        } else if (intent.action == Intent.ACTION_MAIN && intent.hasCategory(Intent.CATEGORY_HOME) && drawerOpen) {
-            closeDrawer()
+        } else if (intent.action == Intent.ACTION_MAIN && intent.hasCategory(Intent.CATEGORY_HOME)) {
+            if (settingsPage != null) closeSettings()
+            if (drawerOpen) closeDrawer()
         }
     }
 
@@ -208,6 +217,7 @@ class MainActivity : Activity() {
         outState.putBoolean(STATE_DRAWER_OPEN, drawerOpen)
         outState.putString(STATE_FILTER, currentFilter.id)
         outState.putString(STATE_QUERY, searchInput.text?.toString().orEmpty())
+        outState.putString(STATE_SETTINGS_PAGE, settingsPage?.name)
         super.onSaveInstanceState(outState)
     }
 
@@ -227,6 +237,9 @@ class MainActivity : Activity() {
         root.addView(home, FrameLayout.LayoutParams(MATCH, MATCH))
         root.addView(drawer, FrameLayout.LayoutParams(MATCH, MATCH))
         drawer.visibility = View.GONE
+        buildSettingsLayer()
+        root.addView(settingsLayer, FrameLayout.LayoutParams(MATCH, MATCH))
+        settingsLayer.visibility = View.GONE
 
         root.setOnApplyWindowInsetsListener { _, insets ->
             val bars = if (android.os.Build.VERSION.SDK_INT >= 30) {
@@ -243,6 +256,7 @@ class MainActivity : Activity() {
                 )
             }
             home.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            settingsLayer.setPadding(bars.left, bars.top, bars.right, bars.bottom)
             val drawerBottom = if (android.os.Build.VERSION.SDK_INT >= 30 && imeVisible) {
                 max(bars.bottom, insets.getInsets(WindowInsets.Type.ime()).bottom)
             } else {
@@ -252,6 +266,327 @@ class MainActivity : Activity() {
             drawer.post(::positionDrawerChildren)
             insets
         }
+    }
+
+    private fun buildSettingsLayer() {
+        settingsLayer = FrameLayout(this).apply {
+            setBackgroundColor(SETTINGS_BACKGROUND_COLOR)
+            isClickable = true
+            isFocusable = true
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+            contentDescription = "Launcher settings"
+        }
+    }
+
+    private fun showSettings(page: SettingsPage = SettingsPage.ROOT) {
+        settingsPage?.let { current ->
+            if (::settingsScroll.isInitialized) settingsScrollPositions[current] = settingsScroll.scrollY
+        }
+        if (drawerOpen) closeDrawer()
+        settingsPage = page
+        settingsLayer.visibility = View.VISIBLE
+        home.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+        drawer.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+        renderSettingsPage(preserveCurrentScroll = false)
+        settingsLayer.requestFocus()
+    }
+
+    private fun closeSettings() {
+        settingsPage?.let { current ->
+            if (::settingsScroll.isInitialized) settingsScrollPositions[current] = settingsScroll.scrollY
+        }
+        settingsPage = null
+        settingsLayer.visibility = View.GONE
+        home.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+        drawer.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+        home.requestFocus()
+    }
+
+    private fun renderSettingsPage(preserveCurrentScroll: Boolean = true) {
+        val page = settingsPage ?: return
+        if (preserveCurrentScroll && ::settingsScroll.isInitialized) {
+            settingsScrollPositions[page] = settingsScroll.scrollY
+        }
+        settingsLayer.removeAllViews()
+
+        val pageColumn = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(SETTINGS_BACKGROUND_COLOR)
+        }
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(8), 0, dp(20), 0)
+        }
+        header.addView(settingsText(if (page == SettingsPage.ROOT) "×" else "‹", 28f, SETTINGS_PRIMARY_COLOR, mediumTypeface).apply {
+            gravity = Gravity.CENTER
+            isClickable = true
+            isFocusable = true
+            minWidth = dp(56)
+            contentDescription = if (page == SettingsPage.ROOT) "Close settings" else "Back to launcher settings"
+            setOnClickListener { handleSettingsBack() }
+        }, LinearLayout.LayoutParams(dp(56), dp(64)))
+        header.addView(settingsText(settingsPageTitle(page), 18f, SETTINGS_PRIMARY_COLOR, mediumTypeface).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            isAccessibilityHeading = true
+        }, LinearLayout.LayoutParams(0, dp(64), 1f))
+        pageColumn.addView(header, LinearLayout.LayoutParams(MATCH, dp(64)))
+
+        val body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(8), dp(20), dp(32))
+        }
+        settingsScroll = ScrollView(this).apply {
+            isFillViewport = true
+            isVerticalScrollBarEnabled = false
+            addView(body, ViewGroup.LayoutParams(MATCH, WRAP))
+        }
+        pageColumn.addView(settingsScroll, LinearLayout.LayoutParams(MATCH, 0, 1f))
+        settingsLayer.addView(pageColumn, FrameLayout.LayoutParams(MATCH, MATCH))
+
+        when (page) {
+            SettingsPage.ROOT -> renderSettingsRoot(body)
+            SettingsPage.HOME -> renderHomeSettings(body)
+            SettingsPage.DRAWER -> renderDrawerSettings(body)
+            SettingsPage.APPEARANCE -> renderAppearanceSettings(body)
+            SettingsPage.SYSTEM -> renderSystemSettings(body)
+            SettingsPage.ABOUT -> renderAboutSettings(body)
+        }
+        settingsScroll.post { settingsScroll.scrollTo(0, settingsScrollPositions[page] ?: 0) }
+    }
+
+    private fun handleSettingsBack() {
+        val page = settingsPage ?: return
+        val parent = SettingsInformationArchitecture.parent(page)
+        if (parent == null) closeSettings() else showSettings(parent)
+    }
+
+    private fun settingsPageTitle(page: SettingsPage): String = when (page) {
+        SettingsPage.ROOT -> "launcher settings"
+        SettingsPage.HOME -> "home screen"
+        SettingsPage.DRAWER -> "app drawer"
+        SettingsPage.APPEARANCE -> "appearance"
+        SettingsPage.SYSTEM -> "system"
+        SettingsPage.ABOUT -> "about"
+    }
+
+    private fun renderSettingsRoot(body: LinearLayout) {
+        body.addView(settingsText(
+            "Configure Minimal Launcher without leaving this screen.",
+            11f,
+            SETTINGS_SECONDARY_COLOR,
+            regularTypeface,
+        ).apply { setPadding(dp(12), 0, dp(12), dp(16)) })
+        SettingsInformationArchitecture.categories.forEach { category ->
+            addSettingsRow(body, category.title, category.summary, "›") { showSettings(category.page) }
+        }
+    }
+
+    private fun renderHomeSettings(body: LinearLayout) {
+        addSettingsSection(body, "favorites and widgets")
+        addSettingsRow(body, "Favorite apps", "Choose the right-aligned Home shortcuts", "${preferences.favorites.size}") {
+            showFavoriteEditor()
+        }
+        addSettingsRow(body, "Add widget", "Open Android's widget picker", "system") { pickWidget() }
+
+        addSettingsSection(body, "clock and date")
+        addSettingsRow(body, "Show clock/date", "Built-in launcher clock treatment", onOff(preferences.showBuiltInClock)) {
+            preferences.showBuiltInClock = !preferences.showBuiltInClock
+            applyAppearance()
+            renderSettingsPage()
+        }
+        addSettingsRow(body, "Clock format", "Follow Android or override the format", clockFormatLabel()) {
+            showClockFormatEditor()
+        }
+
+        addSettingsSection(body, "weather")
+        val unit = when (preferences.weatherTemperatureUnit) {
+            WeatherTemperatureUnit.SYSTEM -> "system units"
+            WeatherTemperatureUnit.CELSIUS -> "celsius"
+            WeatherTemperatureUnit.FAHRENHEIT -> "fahrenheit"
+        }
+        addSettingsRow(
+            body,
+            "Weather",
+            "Location, temperature unit, and provider settings",
+            if (preferences.weatherEnabled) unit else "off",
+        ) { showWeatherEditor() }
+    }
+
+    private fun renderDrawerSettings(body: LinearLayout) {
+        addSettingsSection(body, "filters")
+        addSettingsRow(
+            body,
+            "Manage filters",
+            "Daily, media, and ${preferences.customFilters.size} custom categories",
+            "edit",
+        ) { showFilterEditor() }
+        addSettingsRow(body, "Show filter labels", "Swipe navigation remains available when hidden", onOff(preferences.showFilterBar)) {
+            preferences.showFilterBar = !preferences.showFilterBar
+            applyDrawerPresentation()
+            renderSettingsPage()
+        }
+
+        addSettingsSection(body, "search")
+        addSettingsRow(body, "Open keyboard automatically", "Search remains focused for physical keyboards", onOff(preferences.autoShowKeyboard)) {
+            preferences.autoShowKeyboard = !preferences.autoShowKeyboard
+            renderSettingsPage()
+        }
+        addSettingsRow(body, "Accent underline", "Show the line beneath search", onOff(preferences.showSearchUnderline)) {
+            preferences.showSearchUnderline = !preferences.showSearchUnderline
+            applyDrawerPresentation()
+            renderSettingsPage()
+        }
+        addSettingsRow(body, "Search left margin", "Position the left-aligned search field", "${preferences.searchLeftMarginDp} dp") {
+            showSearchLeftMarginEditor()
+        }
+
+        addSettingsSection(body, "layout")
+        addSettingsRow(body, "App-list margins", "Top and right spacing", "${preferences.appListTopMarginDp} / ${preferences.appListRightMarginDp} dp") {
+            showAppListMarginsEditor()
+        }
+        addSettingsRow(body, "Bottom fade", "Fade app rows into drawer controls", onOff(preferences.showDrawerGradient)) {
+            preferences.showDrawerGradient = !preferences.showDrawerGradient
+            applyDrawerPresentation()
+            renderSettingsPage()
+        }
+
+        addSettingsSection(body, "gesture")
+        addSettingsRow(
+            body,
+            "Drawer dismissal",
+            "Distance and speed sensitivity",
+            "${preferences.drawerDismissDistanceSensitivity}% / ${preferences.drawerDismissSpeedSensitivity}%",
+        ) { showDismissSensitivityEditor() }
+    }
+
+    private fun renderAppearanceSettings(body: LinearLayout) {
+        addSettingsSection(body, "typography")
+        addSettingsRow(body, "Font size", "Launcher text scale", "${preferences.fontScalePercent}%") { showFontSizeEditor() }
+        addSettingsRow(body, "Font color", "Primary launcher text", formatColor(preferences.fontColor)) { showColorEditor(accent = false) }
+        addSettingsRow(body, "Accent color", "Filters, controls, and highlights", formatColor(preferences.accentColor)) { showColorEditor(accent = true) }
+
+        addSettingsSection(body, "background")
+        addSettingsRow(body, "Background mode", "Wallpaper treatment or solid color", preferences.appearance.name.lowercase()) {
+            showAppearanceEditor()
+        }
+        addSettingsRow(
+            body,
+            "Solid color",
+            if (preferences.appearance == Appearance.SOLID) "Current opaque background" else "Available when Background mode is Solid",
+            formatColor(preferences.solidBackgroundColor),
+            enabled = preferences.appearance == Appearance.SOLID,
+        ) { showSolidBackgroundColorEditor() }
+
+        addSettingsSection(body, "system interface")
+        addSettingsRow(body, "Hide status bar", "Use the top system-bar area", onOff(preferences.hideStatusBar)) {
+            preferences.hideStatusBar = !preferences.hideStatusBar
+            applyStatusBarPreference()
+            renderSettingsPage()
+        }
+    }
+
+    private fun renderSystemSettings(body: LinearLayout) {
+        val roleManager = getSystemService(RoleManager::class.java)
+        val isHome = roleManager.isRoleAvailable(RoleManager.ROLE_HOME) && roleManager.isRoleHeld(RoleManager.ROLE_HOME)
+        addSettingsSection(body, "home application")
+        addSettingsRow(
+            body,
+            "Default Home",
+            if (isHome) "Minimal Launcher is the current Home app" else "Choose the device's Home app",
+            if (isHome) "selected" else "choose",
+        ) { requestHomeRole() }
+
+        addSettingsSection(body, "permissions")
+        val locationGranted = checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        addSettingsRow(
+            body,
+            "Approximate location",
+            "Used only when device-location weather is enabled",
+            if (locationGranted) "allowed" else "not allowed",
+        ) {
+            if (locationGranted) openAppDetails()
+            else requestPermissions(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION), REQUEST_COARSE_LOCATION)
+        }
+        addSettingsRow(body, "App details", "Open Android's app information screen", "system") { openAppDetails() }
+    }
+
+    private fun renderAboutSettings(body: LinearLayout) {
+        val packageInfo = packageManager.getPackageInfo(packageName, 0)
+        addSettingsSection(body, "minimal launcher")
+        body.addView(settingsText(
+            "A native, text-first Android Home application focused on fast app access, negative space, and system-integrated customization.",
+            13f,
+            SETTINGS_PRIMARY_COLOR,
+            regularTypeface,
+        ).apply {
+            setPadding(dp(12), dp(8), dp(12), dp(24))
+            setLineSpacing(0f, 1.2f)
+        })
+        addSettingsRow(body, "Version", "Installed launcher build", "${packageInfo.versionName} (${packageInfo.longVersionCode})")
+        addSettingsRow(body, "Application ID", "Android package identity", packageName)
+        addSettingsRow(body, "Platform", "Native Android Views · no WebView", "SDK 29+")
+    }
+
+    private fun addSettingsSection(parent: LinearLayout, title: String) {
+        parent.addView(settingsText(title.uppercase(Locale.getDefault()), 9f, SETTINGS_ACCENT_COLOR, mediumTypeface).apply {
+            letterSpacing = 0.1f
+            setPadding(dp(12), dp(22), dp(12), dp(8))
+            isAccessibilityHeading = true
+        }, LinearLayout.LayoutParams(MATCH, WRAP))
+    }
+
+    private fun addSettingsRow(
+        parent: LinearLayout,
+        title: String,
+        summary: String,
+        value: String = "",
+        enabled: Boolean = true,
+        onClick: (() -> Unit)? = null,
+    ) {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            minimumHeight = dp(68)
+            alpha = if (enabled) 1f else 0.42f
+            isEnabled = enabled
+            isClickable = enabled && onClick != null
+            isFocusable = enabled && onClick != null
+            contentDescription = listOf(title, summary, value).filter { it.isNotBlank() }.joinToString(", ")
+            if (enabled && onClick != null) setOnClickListener { onClick() }
+        }
+        val labels = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        labels.addView(settingsText(title, 13f, SETTINGS_PRIMARY_COLOR, mediumTypeface), LinearLayout.LayoutParams(MATCH, WRAP))
+        if (summary.isNotBlank()) labels.addView(
+            settingsText(summary, 9.5f, SETTINGS_SECONDARY_COLOR, regularTypeface).apply { setPadding(0, dp(3), dp(8), 0) },
+            LinearLayout.LayoutParams(MATCH, WRAP),
+        )
+        row.addView(labels, LinearLayout.LayoutParams(0, WRAP, 1f))
+        if (value.isNotBlank()) row.addView(
+            settingsText(value, 10f, if (enabled) SETTINGS_ACCENT_COLOR else SETTINGS_SECONDARY_COLOR, mediumTypeface).apply {
+                gravity = Gravity.END or Gravity.CENTER_VERTICAL
+                maxWidth = dp(150)
+            },
+            LinearLayout.LayoutParams(WRAP, MATCH),
+        )
+        parent.addView(row, LinearLayout.LayoutParams(MATCH, WRAP))
+    }
+
+    private fun settingsText(textValue: String, sizeSp: Float, color: Int, face: Typeface): TextView = TextView(this).apply {
+        text = textValue
+        setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, scaledSp(sizeSp))
+        setTextColor(color)
+        typeface = face
+    }
+
+    private fun onOff(value: Boolean): String = if (value) "on" else "off"
+
+    private fun applyDrawerPresentation() {
+        searchUnderline.visibility = if (preferences.showSearchUnderline) View.VISIBLE else View.GONE
+        drawerFade.visibility = if (preferences.showDrawerGradient) View.VISIBLE else View.GONE
+        positionDrawerChildren()
+        updateDrawerFocusTraversal()
     }
 
     private fun buildHome() {
@@ -802,6 +1137,10 @@ class MainActivity : Activity() {
     override fun onBackPressed() = handleBack()
 
     private fun handleBack() {
+        if (settingsPage != null) {
+            handleSettingsBack()
+            return
+        }
         if (drawerOpen && imeVisible) {
             dismissDrawerIme()
             return
@@ -814,7 +1153,7 @@ class MainActivity : Activity() {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (event.action == KeyEvent.ACTION_DOWN && !drawerOpen && !event.isCtrlPressed && !event.isAltPressed && !event.isMetaPressed) {
+        if (event.action == KeyEvent.ACTION_DOWN && settingsPage == null && !drawerOpen && !event.isCtrlPressed && !event.isAltPressed && !event.isMetaPressed) {
             val unicode = event.unicodeChar
             if (unicode != 0 && !Character.isISOControl(unicode)) {
                 openDrawer(seed = String(Character.toChars(unicode)))
@@ -1059,31 +1398,7 @@ class MainActivity : Activity() {
     }
 
     private fun showLauncherSettings() {
-        val items = arrayOf(
-            "add widget · system",
-            "favorites",
-            "filters",
-            "customization",
-            "drawer dismissal · ${preferences.drawerDismissDistanceSensitivity}% / ${preferences.drawerDismissSpeedSensitivity}%",
-            "weather · ${if (preferences.weatherEnabled) "on" else "off"}",
-            "permissions · system",
-            "app details · system",
-        )
-        AlertDialog.Builder(this)
-            .setTitle("launcher settings")
-            .setItems(items) { _, which ->
-                when (which) {
-                    0 -> pickWidget()
-                    1 -> showFavoriteEditor()
-                    2 -> showFilterEditor()
-                    3 -> showCustomizationMenu()
-                    4 -> showDismissSensitivityEditor()
-                    5 -> showWeatherEditor()
-                    6, 7 -> openAppDetails()
-                }
-            }
-            .setNegativeButton("close", null)
-            .show()
+        showSettings()
     }
 
     private fun updateHomeRolePrompt() {
@@ -1120,6 +1435,7 @@ class MainActivity : Activity() {
             .setSingleChoiceItems(choices, preferences.appearance.ordinal) { dialog, which ->
                 preferences.appearance = Appearance.entries[which]
                 applyAppearance()
+                renderSettingsPage()
                 dialog.dismiss()
             }
             .show()
@@ -1132,6 +1448,7 @@ class MainActivity : Activity() {
             .setSingleChoiceItems(choices, preferences.clockFormat.ordinal) { dialog, which ->
                 preferences.clockFormat = ClockFormat.entries[which]
                 updateClock()
+                renderSettingsPage()
                 dialog.dismiss()
             }
             .show()
@@ -1141,82 +1458,6 @@ class MainActivity : Activity() {
         ClockFormat.SYSTEM -> "system"
         ClockFormat.TWELVE_HOUR -> "12-hour"
         ClockFormat.TWENTY_FOUR_HOUR -> "24-hour"
-    }
-
-    private fun showCustomizationMenu() {
-        val items = arrayOf(
-            "font size · ${preferences.fontScalePercent}%",
-            "font color · ${formatColor(preferences.fontColor)}",
-            "accent color · ${formatColor(preferences.accentColor)}",
-            "appearance · ${preferences.appearance.name.lowercase()}",
-            "solid background · ${if (preferences.appearance == Appearance.SOLID) "✓ on" else "off"}",
-            "solid color · ${formatColor(preferences.solidBackgroundColor)}",
-            "built-in clock/date · ${if (preferences.showBuiltInClock) "shown" else "hidden"}",
-            "clock format · ${clockFormatLabel()}",
-            "keyboard on drawer · ${if (preferences.autoShowKeyboard) "on" else "off"}",
-            "filter labels · ${if (preferences.showFilterBar) "shown" else "hidden"}",
-            "bottom gradient · ${if (preferences.showDrawerGradient) "on" else "off"}",
-            "search underline · ${if (preferences.showSearchUnderline) "on" else "off"}",
-            "search left margin · ${preferences.searchLeftMarginDp} dp",
-            "app list margins · ${preferences.appListTopMarginDp} / ${preferences.appListRightMarginDp} dp",
-            "status bar · ${if (preferences.hideStatusBar) "hidden" else "shown"}",
-        )
-        AlertDialog.Builder(this)
-            .setTitle("customization")
-            .setItems(items) { _, which ->
-                when (which) {
-                    0 -> showFontSizeEditor()
-                    1 -> showColorEditor(accent = false)
-                    2 -> showColorEditor(accent = true)
-                    3 -> showAppearanceEditor()
-                    4 -> {
-                        preferences.appearance = preferences.appearance.toggleSolid()
-                        applyAppearance()
-                        Toast.makeText(
-                            this,
-                            if (preferences.appearance == Appearance.SOLID) {
-                                "Solid background enabled"
-                            } else {
-                                "Solid background disabled; wallpaper restored"
-                            },
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                    }
-                    5 -> showSolidBackgroundColorEditor()
-                    6 -> {
-                        preferences.showBuiltInClock = !preferences.showBuiltInClock
-                        applyAppearance()
-                    }
-                    7 -> showClockFormatEditor()
-                    8 -> {
-                        preferences.autoShowKeyboard = !preferences.autoShowKeyboard
-                        Toast.makeText(
-                            this,
-                            "Automatic keyboard ${if (preferences.autoShowKeyboard) "enabled" else "disabled"}",
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                    }
-                    9 -> {
-                        preferences.showFilterBar = !preferences.showFilterBar
-                        recreate()
-                    }
-                    10 -> {
-                        preferences.showDrawerGradient = !preferences.showDrawerGradient
-                        recreate()
-                    }
-                    11 -> {
-                        preferences.showSearchUnderline = !preferences.showSearchUnderline
-                        recreate()
-                    }
-                    12 -> showSearchLeftMarginEditor()
-                    13 -> showAppListMarginsEditor()
-                    14 -> {
-                        preferences.hideStatusBar = !preferences.hideStatusBar
-                        recreate()
-                    }
-                }
-            }
-            .show()
     }
 
     private fun showSearchLeftMarginEditor() {
@@ -1247,7 +1488,8 @@ class MainActivity : Activity() {
             .setView(content)
             .setPositiveButton("save") { _, _ ->
                 preferences.searchLeftMarginDp = slider.progress
-                recreate()
+                positionDrawerChildren()
+                renderSettingsPage()
             }
             .setNegativeButton("cancel", null)
             .show()
@@ -1300,7 +1542,8 @@ class MainActivity : Activity() {
             .setPositiveButton("save") { _, _ ->
                 preferences.appListTopMarginDp = topSlider.progress + 24
                 preferences.appListRightMarginDp = rightSlider.progress
-                recreate()
+                positionDrawerChildren()
+                renderSettingsPage()
             }
             .setNegativeButton("cancel", null)
             .show()
@@ -1385,6 +1628,7 @@ class MainActivity : Activity() {
                     } else {
                         Toast.makeText(this, "Color saved; turn on Solid background to use it", Toast.LENGTH_LONG).show()
                     }
+                    renderSettingsPage()
                 }
             }
             .setNegativeButton("cancel", null)
@@ -1447,6 +1691,7 @@ class MainActivity : Activity() {
                 preferences.drawerDismissSpeedSensitivity = speedSlider.progress
                 drawer.dismissDistanceSensitivity = distanceSlider.progress
                 drawer.dismissSpeedSensitivity = speedSlider.progress
+                renderSettingsPage()
             }
             .setNegativeButton("cancel", null)
             .show()
@@ -1471,6 +1716,7 @@ class MainActivity : Activity() {
                 }
                 renderFavorites()
                 renderDrawer()
+                renderSettingsPage()
             }
             .setNegativeButton("cancel", null)
             .show()
@@ -1539,6 +1785,7 @@ class MainActivity : Activity() {
                 preferences.customFilters = filters
                 rebuildFilterButtons()
                 renderDrawer()
+                renderSettingsPage()
                 if (existing == null) showMembershipEditor(FilterSpec.custom(saved))
             }
             .setNegativeButton("cancel", null)
@@ -1557,6 +1804,7 @@ class MainActivity : Activity() {
                         if (currentFilter.id == filter.id) currentFilter = FilterSpec.builtIn(DrawerFilter.ALL)
                         rebuildFilterButtons()
                         renderDrawer()
+                        renderSettingsPage()
                     }
                 }
             }
@@ -1577,6 +1825,7 @@ class MainActivity : Activity() {
                 if (builtIn == null) preferences.setCustomMembership(filter.id, selected)
                 else preferences.setMembership(builtIn, selected)
                 renderDrawer()
+                renderSettingsPage()
             }
             .setNegativeButton("cancel", null)
             .show()
@@ -1707,6 +1956,7 @@ class MainActivity : Activity() {
                         requestPermissions(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION), REQUEST_COARSE_LOCATION)
                     }
                     updateWeather()
+                    renderSettingsPage()
                 }
             }
             .setNegativeButton("cancel", null)
@@ -1720,6 +1970,7 @@ class MainActivity : Activity() {
         locationDeniedThisSession = !granted
         weatherRequestedAt = 0L
         updateWeather()
+        if (settingsPage != null) renderSettingsPage()
     }
 
     private fun pickWidget() {
@@ -1903,9 +2154,14 @@ class MainActivity : Activity() {
         const val STATE_DRAWER_OPEN = "drawer.open"
         const val STATE_FILTER = "drawer.filter"
         const val STATE_QUERY = "drawer.query"
+        const val STATE_SETTINGS_PAGE = "settings.page"
         const val CATALOG_CACHE_KEY = "catalog.entries"
         const val IME_SHOW_DELAY_MS = 120L
         const val WEATHER_REFRESH_INTERVAL_MS = 60 * 60 * 1000L
+        const val SETTINGS_BACKGROUND_COLOR = 0xFF0B0B0D.toInt()
+        const val SETTINGS_PRIMARY_COLOR = 0xFFF4F4F2.toInt()
+        const val SETTINGS_SECONDARY_COLOR = 0xFFA0A09A.toInt()
+        const val SETTINGS_ACCENT_COLOR = 0xFFB7F36B.toInt()
         const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
         const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
     }
