@@ -1,0 +1,126 @@
+name: Build and publish release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Validate, sign, and publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Java 17
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@4733eaac7c1b0da527e4206b7671e0061de1ce37 # v6
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-37" "build-tools;37.0.0"
+
+      - name: Build, lint, and test
+        run: ./gradlew --no-daemon clean assembleRelease lintRelease testDebugUnitTest
+
+      - name: Read release metadata
+        id: metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          metadata_file="app/build/outputs/apk/release/output-metadata.json"
+          version_name="$(jq -r '.elements[0].versionName' "$metadata_file")"
+          version_code="$(jq -r '.elements[0].versionCode' "$metadata_file")"
+          short_sha="${GITHUB_SHA::7}"
+          tag="v${version_name}-${short_sha}"
+          apk_name="minml-launcher-${version_name}-${short_sha}.apk"
+
+          echo "version_name=$version_name" >> "$GITHUB_OUTPUT"
+          echo "version_code=$version_code" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "apk_name=$apk_name" >> "$GITHUB_OUTPUT"
+
+      - name: Sign and verify APK
+        env:
+          ANDROID_SIGNING_KEYSTORE_BASE64: ${{ secrets.ANDROID_SIGNING_KEYSTORE_BASE64 }}
+          ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
+          ANDROID_SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_STORE_PASSWORD }}
+          ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
+          APK_NAME: ${{ steps.metadata.outputs.apk_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${ANDROID_SIGNING_KEYSTORE_BASE64:?Missing ANDROID_SIGNING_KEYSTORE_BASE64 repository secret}"
+          : "${ANDROID_SIGNING_KEY_ALIAS:?Missing ANDROID_SIGNING_KEY_ALIAS repository secret}"
+          : "${ANDROID_SIGNING_STORE_PASSWORD:?Missing ANDROID_SIGNING_STORE_PASSWORD repository secret}"
+          : "${ANDROID_SIGNING_KEY_PASSWORD:?Missing ANDROID_SIGNING_KEY_PASSWORD repository secret}"
+
+          build_tools="$ANDROID_SDK_ROOT/build-tools/37.0.0"
+          unsigned_apk="app/build/outputs/apk/release/app-release-unsigned.apk"
+          aligned_apk="$RUNNER_TEMP/minml-release-aligned.apk"
+          keystore="$RUNNER_TEMP/minml-release.keystore"
+
+          mkdir -p dist
+          printf '%s' "$ANDROID_SIGNING_KEYSTORE_BASE64" | base64 --decode > "$keystore"
+          "$build_tools/zipalign" -f -p 4 "$unsigned_apk" "$aligned_apk"
+          "$build_tools/apksigner" sign \
+            --ks "$keystore" \
+            --ks-key-alias "$ANDROID_SIGNING_KEY_ALIAS" \
+            --ks-pass env:ANDROID_SIGNING_STORE_PASSWORD \
+            --key-pass env:ANDROID_SIGNING_KEY_PASSWORD \
+            --out "dist/$APK_NAME" \
+            "$aligned_apk"
+          "$build_tools/apksigner" verify --verbose --print-certs "dist/$APK_NAME"
+
+          (
+            cd dist
+            sha256sum "$APK_NAME" > "$APK_NAME.sha256"
+          )
+
+      - name: Publish GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.metadata.outputs.tag }}
+          VERSION_NAME: ${{ steps.metadata.outputs.version_name }}
+          VERSION_CODE: ${{ steps.metadata.outputs.version_code }}
+          SHORT_SHA: ${{ steps.metadata.outputs.short_sha }}
+          APK_NAME: ${{ steps.metadata.outputs.apk_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          title="minml launcher ${VERSION_NAME} (${SHORT_SHA})"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" \
+              "dist/$APK_NAME" \
+              "dist/$APK_NAME.sha256" \
+              --clobber
+          else
+            gh release create "$TAG" \
+              "dist/$APK_NAME" \
+              "dist/$APK_NAME.sha256" \
+              --target "$GITHUB_SHA" \
+              --title "$title" \
+              --notes "Automated main-branch build of minml launcher ${VERSION_NAME} (version code ${VERSION_CODE}) from commit ${GITHUB_SHA}. The APK is signed and ready to install; verify it with the attached SHA-256 file." \
+              --prerelease \
+              --latest=false
+          fi
