@@ -24,7 +24,6 @@ class EditableWidgetFrame(context: Context) : FrameLayout(context) {
 
     private val moveSurface = View(context)
     private val border = View(context)
-    private val positionLabel = editorControl()
     private val doneControl = editorControl()
     private val removeControl = editorControl()
     private val resizeControl = editorControl()
@@ -44,9 +43,6 @@ class EditableWidgetFrame(context: Context) : FrameLayout(context) {
         clipToPadding = false
         addView(moveSurface, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         addView(border, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-        addView(positionLabel, LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(40)).apply {
-            gravity = Gravity.TOP or Gravity.START
-        })
         addView(doneControl, LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(40)).apply {
             gravity = Gravity.TOP or Gravity.END
         })
@@ -98,7 +94,6 @@ class EditableWidgetFrame(context: Context) : FrameLayout(context) {
         editing = true
         performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
         setEditorVisible(true)
-        updatePositionLabel()
         moveSurface.requestFocus()
         onEditingChanged?.invoke(true)
         announceForAccessibility("Widget editing. Drag to move, or use the resize handle.")
@@ -137,7 +132,6 @@ class EditableWidgetFrame(context: Context) : FrameLayout(context) {
             leftMargin = left
             topMargin = top
         }
-        updatePositionLabel()
     }
 
     fun currentGeometry(): WidgetGeometry {
@@ -174,7 +168,6 @@ class EditableWidgetFrame(context: Context) : FrameLayout(context) {
                 params.topMargin = snap(startTop + (event.rawY - startRawY).roundToInt())
                     .coerceIn(0, (parentView.height - params.height).coerceAtLeast(0))
                 layoutParams = params
-                updatePositionLabel()
                 return true
             }
             MotionEvent.ACTION_UP -> {
@@ -206,7 +199,6 @@ class EditableWidgetFrame(context: Context) : FrameLayout(context) {
                 params.height = snap(startHeight + (event.rawY - startRawY).roundToInt())
                     .coerceIn(minimumEditorHeightPx.coerceAtMost(maxHeight), maxHeight)
                 layoutParams = params
-                updatePositionLabel()
                 return true
             }
             MotionEvent.ACTION_UP -> {
@@ -272,31 +264,14 @@ class EditableWidgetFrame(context: Context) : FrameLayout(context) {
             params.topMargin = params.topMargin.coerceIn(0, (parentView.height - params.height).coerceAtLeast(0))
         }
         layoutParams = params
-        updatePositionLabel()
         onGeometryCommitted?.invoke(currentGeometry())
         return true
-    }
-
-    private fun updatePositionLabel() {
-        val params = layoutParams as? FrameLayout.LayoutParams ?: return
-        positionLabel.text = context.getString(
-            R.string.widget_editor_geometry,
-            (params.leftMargin / density).roundToInt(),
-            (params.topMargin / density).roundToInt(),
-            (params.width / density).roundToInt(),
-            (params.height / density).roundToInt(),
-        )
-        positionLabel.contentDescription = context.getString(
-            R.string.widget_editor_geometry_description,
-            positionLabel.text,
-        )
     }
 
     private fun setEditorVisible(visible: Boolean) {
         val visibility = if (visible) View.VISIBLE else View.GONE
         moveSurface.visibility = visibility
         border.visibility = visibility
-        positionLabel.visibility = visibility
         doneControl.visibility = visibility
         removeControl.visibility = visibility
         resizeControl.visibility = visibility
@@ -309,7 +284,7 @@ class EditableWidgetFrame(context: Context) : FrameLayout(context) {
             setStroke(dp(1), accentColor)
             cornerRadius = dp(4).toFloat()
         }
-        listOf(positionLabel, doneControl, removeControl, resizeControl).forEach { control ->
+        listOf(doneControl, removeControl, resizeControl).forEach { control ->
             control.setTextColor(if (control === removeControl) editorTextColor else accentColor)
             control.typeface = editorTypeface
             control.background = GradientDrawable().apply {
