@@ -28,7 +28,7 @@ compile SDK is 37.
 
 The generic debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
 The current device-tested artifact is
-`app/build/outputs/apk/debug/minimal-launcher-0.4.0-debug.apk`.
+`app/build/outputs/apk/debug/minimal-launcher-0.4.1-debug.apk`.
 
 ## Run
 
@@ -57,6 +57,8 @@ The emulator process crashed during injected drawer/keyboard input when using
 - Swipe up on Home, invoke TalkBack's **Open apps** action, or type on a physical
   keyboard to open the drawer. Search is focused and the system keyboard opens
   automatically.
+- Swipe down on Home to expand Android's notification shade. Minimal Launcher
+  delegates this to SystemUI and does not request notification-listener access.
 - Tap filter labels or swipe horizontally over the drawer (including app rows)
   to cycle all/daily/work/media and any custom categories. Vertical gestures
   continue to scroll the list.
