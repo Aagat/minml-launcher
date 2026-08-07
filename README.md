@@ -28,7 +28,7 @@ compile SDK is 37.
 
 The generic debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
 The current device-tested artifact is
-`app/build/outputs/apk/debug/minimal-launcher-0.2.0-debug.apk`.
+`app/build/outputs/apk/debug/minimal-launcher-0.2.1-debug.apk`.
 
 ## Run
 
@@ -70,7 +70,10 @@ The emulator process crashed during injected drawer/keyboard input when using
 - Back dismisses the IME first, then closes the drawer.
 - Optional weather can use manual coordinates or an explicitly granted
   approximate device location, with manual fallback, selectable System/Celsius/
-  Fahrenheit units, and a six-hour stale cache.
+  Fahrenheit units, and a six-hour stale cache. Weather enablement, temperature
+  units, location source, saved coordinates, and permission state are exposed
+  directly as rows in Home screen settings; only coordinate text entry uses a
+  focused dialog.
 - Clock format can follow Android or be forced to 12-hour or 24-hour display.
 - The drawer header accents only the filter name. Search is left-aligned with a
   muted hint and configurable left margin; app rows remain right-aligned.
