@@ -2,6 +2,10 @@
   <img src="docs/assets/minml-readme-banner.png" alt="minml launcher" width="1200">
 </p>
 
+<p align="center">
+  <a href="https://github.com/Aagat/minml-launcher/actions/workflows/release.yml"><img src="https://github.com/Aagat/minml-launcher/actions/workflows/release.yml/badge.svg?branch=main" alt="Build and publish release"></a>
+</p>
+
 A native, text-first Android home screen built around typography, wallpaper,
 negative space, and fast access to apps. minml launcher replaces the usual icon
 grid with configurable favorites and a searchable app drawer while retaining
@@ -70,6 +74,20 @@ For an unsigned release build:
 The unsigned APK is written to
 `app/build/outputs/apk/release/app-release-unsigned.apk`. Sign public releases
 with a private, durable release key; no signing key is stored in this repository.
+
+## Automated releases
+
+Every push to `main` runs the build, lint, and unit-test suite before publishing
+a signed APK and its SHA-256 checksum as a uniquely tagged GitHub prerelease.
+Downloads are available on the [Releases page](https://github.com/Aagat/minml-launcher/releases).
+
+Release signing is supplied to GitHub Actions through these repository secrets;
+the keystore itself is never committed:
+
+- `ANDROID_SIGNING_KEYSTORE_BASE64`
+- `ANDROID_SIGNING_KEY_ALIAS`
+- `ANDROID_SIGNING_STORE_PASSWORD`
+- `ANDROID_SIGNING_KEY_PASSWORD`
 
 ## Device tests
 
