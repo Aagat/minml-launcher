@@ -81,6 +81,7 @@ class MainActivity : Activity() {
     private var visibleApps: List<AppEntry> = emptyList()
     private var currentFilter = DrawerFilter.ALL
     private var drawerOpen = false
+    private var imeVisible = false
     private var pendingWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
     private var weatherRequestedAt = 0L
 
@@ -108,6 +109,7 @@ class MainActivity : Activity() {
         buildUi()
         setContentView(root)
         applyAppearance()
+        restoreCachedCatalog()
         if (android.os.Build.VERSION.SDK_INT >= 33) {
             onBackInvokedDispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, ::handleBack)
         }
@@ -139,6 +141,8 @@ class MainActivity : Activity() {
         setIntent(intent)
         if (intent.action == Intent.ACTION_SEARCH) {
             openDrawer(focusSearch = true, seed = intent.getStringExtra(SearchManager.QUERY).orEmpty())
+        } else if (intent.action == Intent.ACTION_MAIN && intent.hasCategory(Intent.CATEGORY_HOME) && drawerOpen) {
+            closeDrawer()
         }
     }
 
@@ -180,9 +184,11 @@ class MainActivity : Activity() {
 
         root.setOnApplyWindowInsetsListener { _, insets ->
             val bars = if (android.os.Build.VERSION.SDK_INT >= 30) {
+                imeVisible = insets.isVisible(WindowInsets.Type.ime())
                 insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
             } else {
                 @Suppress("DEPRECATION")
+                run { imeVisible = insets.systemWindowInsetBottom > dp(100) }
                 android.graphics.Insets.of(
                     insets.systemWindowInsetLeft,
                     insets.systemWindowInsetTop,
@@ -273,7 +279,6 @@ class MainActivity : Activity() {
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
             contentDescription = "App drawer"
             onFilterSwipe = { cycleFilter(it) }
-            addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> positionDrawerChildren() }
         }
 
         appList = ListView(this).apply {
@@ -472,9 +477,20 @@ class MainActivity : Activity() {
     }
 
     private fun onCatalogChanged(apps: List<AppEntry>) {
+        if (apps.isEmpty() && allApps.isNotEmpty()) return
         allApps = apps
+        runtimePreferences.edit().putString(CATALOG_CACHE_KEY, CatalogCacheCodec.encode(apps)).apply()
         initializeClassifications()
         reconcileFavorites()
+        renderFavorites()
+        renderDrawer()
+    }
+
+    private fun restoreCachedCatalog() {
+        val cached = CatalogCacheCodec.decode(runtimePreferences.getString(CATALOG_CACHE_KEY, "").orEmpty())
+        if (cached.isEmpty()) return
+        allApps = AppSearch.rank(cached, "")
+        initializeClassifications()
         renderFavorites()
         renderDrawer()
     }
@@ -593,7 +609,7 @@ class MainActivity : Activity() {
     override fun onBackPressed() = handleBack()
 
     private fun handleBack() {
-        if (drawerOpen && searchInput.hasFocus()) {
+        if (drawerOpen && imeVisible) {
             getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(searchInput.windowToken, 0)
             searchInput.clearFocus()
             drawer.requestFocus()
@@ -622,10 +638,12 @@ class MainActivity : Activity() {
     }
 
     private fun launchApp(app: AppEntry) {
-        catalog.launch(app).onFailure {
-            Toast.makeText(this, "${app.label} is unavailable", Toast.LENGTH_SHORT).show()
-            catalog.refresh()
-        }
+        catalog.launch(app)
+            .onSuccess { closeDrawer() }
+            .onFailure {
+                Toast.makeText(this, "${app.label} is unavailable", Toast.LENGTH_SHORT).show()
+                catalog.refresh()
+            }
     }
 
     private fun openAppDetails(app: AppEntry) {
@@ -1035,6 +1053,7 @@ class MainActivity : Activity() {
         const val STATE_DRAWER_OPEN = "drawer.open"
         const val STATE_FILTER = "drawer.filter"
         const val STATE_QUERY = "drawer.query"
+        const val CATALOG_CACHE_KEY = "catalog.entries"
         const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
         const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
         const val PRIMARY = 0xFFF4F4F2.toInt()
