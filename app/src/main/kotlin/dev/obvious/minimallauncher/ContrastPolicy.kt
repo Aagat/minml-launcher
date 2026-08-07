@@ -35,6 +35,13 @@ object ContrastPolicy {
         return 0.2126 * red + 0.7152 * green + 0.0722 * blue
     }
 
+    fun localizedFallback(decision: AutoContrastDecision, textColor: Int): AutoContrastDecision =
+        if (decision.tone != ScrimTone.NONE) decision
+        else AutoContrastDecision(
+            tone = if (luminance(textColor) >= LIGHT_TEXT_LUMINANCE) ScrimTone.DARK else ScrimTone.LIGHT,
+            strength = ScrimStrength.STRONG,
+        )
+
     private fun contrastRatio(first: Double, second: Double): Double =
         (max(first, second) + 0.05) / (min(first, second) + 0.05)
 

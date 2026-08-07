@@ -939,10 +939,13 @@ class MainActivity : Activity() {
             GradientDrawable.Orientation.TOP_BOTTOM,
             fullScreenScrimColors(decision),
         )
-        clockPanel.background = localizedClockScrimColors(decision)?.let { colors ->
+        val localizedDecision = if (appearance == Appearance.AUTO) {
+            ContrastPolicy.localizedFallback(decision, primaryColor)
+        } else decision
+        clockPanel.background = localizedClockScrimColors(localizedDecision)?.let { colors ->
             GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT, colors).apply { cornerRadius = dp(8).toFloat() }
         }
-        dateView.setTextColor(if (decision.tone == ScrimTone.NONE) secondaryColor else wallpaperSecondaryColor)
+        dateView.setTextColor(if (localizedDecision.tone == ScrimTone.NONE) secondaryColor else wallpaperSecondaryColor)
     }
 
     private fun systemWallpaperPrimaryColor(): Int? = runCatching {

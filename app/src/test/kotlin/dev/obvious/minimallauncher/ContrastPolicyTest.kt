@@ -29,4 +29,10 @@ class ContrastPolicyTest {
         assertEquals(1.0, ContrastPolicy.luminance(0xFFFFFFFF.toInt()), 0.0001)
         assertTrue(ContrastPolicy.luminance(0xFF00FF00.toInt()) > ContrastPolicy.luminance(0xFF0000FF.toInt()))
     }
+
+    @Test fun `localized fallback protects mixed wallpaper regions`() {
+        val none = AutoContrastDecision(ScrimTone.NONE, ScrimStrength.LIGHT)
+        assertEquals(ScrimTone.DARK, ContrastPolicy.localizedFallback(none, 0xFFF4F4F2.toInt()).tone)
+        assertEquals(ScrimTone.LIGHT, ContrastPolicy.localizedFallback(none, 0xFF202020.toInt()).tone)
+    }
 }
