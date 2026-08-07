@@ -31,8 +31,8 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-if [[ ! -x "$ADB" || ! -x "$EMULATOR" ]]; then
-    echo "Android SDK tools were not found under $ANDROID_SDK_ROOT" >&2
+if [[ ! -x "$ADB" ]]; then
+    echo "adb was not found under $ANDROID_SDK_ROOT" >&2
     exit 2
 fi
 
@@ -41,6 +41,10 @@ if [[ -z "$SERIAL" ]]; then
 fi
 
 if [[ -z "$SERIAL" ]]; then
+    if [[ ! -x "$EMULATOR" ]]; then
+        echo "No device is connected and the emulator was not found under $ANDROID_SDK_ROOT" >&2
+        exit 2
+    fi
     "$EMULATOR" "@$AVD_NAME" -gpu swangle -no-window -no-audio -no-boot-anim -no-snapshot-save >"$TEMP_DIR/emulator.log" 2>&1 &
     STARTED_EMULATOR=1
     for _ in $(seq 1 90); do

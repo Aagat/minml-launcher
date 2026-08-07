@@ -48,8 +48,8 @@ registration/settings, preference restoration, drawer rendering modes,
 search/IME/app launch/filter/dismiss gestures, and rotation. It then writes one
 self-contained summary to
 `app/build/reports/launcher-ui/index.html`, with links to the detailed Gradle
-reports plus screenshots, UI hierarchies, device metadata, build/install logs,
-and filtered logcat output.
+reports plus screenshots, the final UI hierarchy, device metadata,
+build/install logs, and filtered logcat output.
 
 Set `ANDROID_SERIAL` to target a specific already connected device. Set
 `AVD_NAME` to use another AVD, or `KEEP_AVD=1` to leave an AVD started by the

@@ -57,9 +57,6 @@ class LauncherUiTest {
             device.executeShellCommand(
                 "screencap -p $ARTIFACTS_DIRECTORY/${testName.methodName}.png",
             )
-            device.executeShellCommand(
-                "uiautomator dump $ARTIFACTS_DIRECTORY/${testName.methodName}.xml",
-            )
         }
         runCatching { device.setOrientationNatural() }
         runCatching { scenario.close() }

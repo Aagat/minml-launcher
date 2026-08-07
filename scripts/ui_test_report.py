@@ -98,6 +98,15 @@ def main() -> None:
         for shot in screenshots
     ) or "<p>No screenshots were collected.</p>"
 
+    hierarchies = sorted(artifact_directory.glob("*.xml")) if artifact_directory.exists() else []
+    final_hierarchy = output.parent / "final-hierarchy.xml"
+    if final_hierarchy.exists():
+        hierarchies.append(final_hierarchy)
+    hierarchy_html = "".join(
+        f'<li><a href="{relative_link(output, hierarchy)}">{html.escape(hierarchy.stem)}</a></li>'
+        for hierarchy in hierarchies
+    ) or "<li>Unavailable</li>"
+
     failures = unit_failures + ui_failures
     failure_html = "" if not failures else (
         "<section><h2>Failures</h2><ul>" +
@@ -133,6 +142,7 @@ a{{color:var(--accent)}} section{{margin-top:30px}} .shots{{display:grid;grid-te
 {failure_html}
 <section><h2>Detailed reports</h2><ul>{''.join(report_links) or '<li>Unavailable</li>'}</ul></section>
 <section><h2>UI screenshots</h2><div class="shots">{screenshot_html}</div></section>
+<section><h2>UI hierarchies</h2><ul>{hierarchy_html}</ul></section>
 <section><h2>Diagnostics</h2><ul>{''.join(diagnostics) or '<li>Unavailable</li>'}</ul></section>
 </main></body></html>"""
     output.write_text(document, encoding="utf-8")
