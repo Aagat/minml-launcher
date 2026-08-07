@@ -5,3 +5,4 @@ build/
 release-artifacts/
 local.properties
 *.iml
+*.pen
