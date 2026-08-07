@@ -28,7 +28,7 @@ compile SDK is 37.
 
 The generic debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`.
 The current device-tested artifact is
-`app/build/outputs/apk/debug/minimal-launcher-0.1.6-debug.apk`.
+`app/build/outputs/apk/debug/minimal-launcher-0.2.0-debug.apk`.
 
 ## Run
 
@@ -76,17 +76,16 @@ The emulator process crashed during injected drawer/keyboard input when using
   muted hint and configurable left margin; app rows remain right-aligned.
 - Auto appearance reacts to Android wallpaper colors while preserving a
   localized clock contrast surface on mixed-brightness wallpaper.
-- Toggle **solid background** under Customization to replace or restore the
-  wallpaper; its checked state is shown explicitly. **solid color** edits the
-  saved color without silently enabling it. The Appearance dialog also labels
-  Solid separately from the three wallpaper modes.
+- Select **Appearance → Background mode → Solid** to replace the wallpaper;
+  select Auto, Transparent, or Gradient to restore wallpaper rendering. **Solid
+  color** edits the saved color without silently enabling it.
 - Long-press an Android widget and choose **remove**. Long-press the built-in
-  clock/date and choose **hide**; restore it with **Customization → built-in
-  clock/date**.
-- Long-press empty Home space to add custom filters and configure favorites,
-  font size/color, accent color, automatic keyboard display, filter-label/fade/
-  underline visibility, list margins, status bar, appearance, optional weather,
-  widgets, and Android system surfaces.
+  clock/date and choose **hide**; restore it with **Home screen → Show built-in
+  clock**.
+- Long-press empty Home space to open persistent, full-screen settings organized
+  into Home screen, App drawer, Appearance, System, and About. Editors return to
+  their category, Back returns one level at a time, and Android system surfaces
+  return to the originating settings page.
 - When Minimal Launcher is not the default Home app, tap the small Home-screen
   prompt to open Android's Home-app chooser.
 
