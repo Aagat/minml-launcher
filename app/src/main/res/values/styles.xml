@@ -1,11 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Launcher" parent="android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:colorAccent">@color/launcher_accent</item>
-        <item name="android:fontFamily">sans</item>
-        <item name="android:navigationBarColor">@android:color/white</item>
-        <item name="android:statusBarColor">@color/launcher_primary_dark</item>
+    <style name="Theme.Launcher" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:windowShowWallpaper">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">false</item>
+        <item name="android:colorAccent">@color/accent</item>
+        <item name="android:fontFamily">@font/geist_mono_nerd_regular</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
         <item name="android:windowActionModeOverlay">true</item>
-        <item name="android:windowBackground">@android:color/white</item>
+        <item name="android:windowNoTitle">true</item>
     </style>
 </resources>

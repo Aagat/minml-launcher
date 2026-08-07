@@ -3,15 +3,17 @@ plugins {
 }
 
 android {
-    namespace = "dev.hello.launcher"
+    namespace = "dev.obvious.minimallauncher"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "dev.hello.launcher"
-        minSdk = 26
-        targetSdk = 37
+        applicationId = "dev.obvious.minimallauncher"
+        minSdk = 29
+        targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
+
+        testInstrumentationRunner = "android.test.InstrumentationTestRunner"
     }
 
     buildTypes {
@@ -25,4 +27,8 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+}
+
+dependencies {
+    testImplementation "junit:junit:4.13.2"
 }
