@@ -70,7 +70,11 @@ class MainActivity : Activity() {
     private var screenUsageView: TextView? = null
     private lateinit var homeRolePrompt: Button
     private lateinit var favoritesView: LinearLayout
-    private lateinit var widgetContainer: LinearLayout
+    private lateinit var widgetContainer: FrameLayout
+    private var activeWidgetEditor: EditableWidgetFrame? = null
+    private val widgetEditors = mutableListOf<EditableWidgetFrame>()
+    private val widgetEditorGeometries = mutableMapOf<EditableWidgetFrame, WidgetGeometry>()
+    private val widgetEditorAutomaticTops = mutableMapOf<EditableWidgetFrame, Int>()
     private lateinit var drawerHeader: TextView
     private lateinit var appList: ListView
     private lateinit var emptyState: TextView
@@ -401,6 +405,17 @@ class MainActivity : Activity() {
             showFavoriteEditor()
         }
         addSettingsRow(body, "Add widget", "Open Android's widget picker", "system") { pickWidget() }
+        if (preferences.showScreenTime || loadWidgetPlacements().isNotEmpty()) {
+            addSettingsRow(
+                body,
+                "Arrange widgets",
+                "Move and resize widgets directly on your Home screen",
+                "open",
+            ) {
+                closeSettings()
+                widgetEditors.firstOrNull()?.let(::enterWidgetEditMode)
+            }
+        }
 
         addSettingsSection(body, "clock and date")
         addSettingsRow(body, "Show clock/date", "Built-in launcher clock treatment", onOff(preferences.showBuiltInClock)) {
@@ -877,14 +892,13 @@ class MainActivity : Activity() {
         })
         updateHomeRolePrompt()
 
-        widgetContainer = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.TOP
+        widgetContainer = FrameLayout(this).apply {
             clipChildren = false
+            clipToPadding = false
         }
         home.addView(widgetContainer, FrameLayout.LayoutParams(MATCH, MATCH).apply {
             gravity = Gravity.TOP
-            setMargins(dp(20), dp(205), dp(20), dp(300))
+            setMargins(dp(12), dp(12), dp(12), dp(80))
         })
 
         favoritesView = LinearLayout(this).apply {
@@ -1508,6 +1522,10 @@ class MainActivity : Activity() {
     override fun onBackPressed() = handleBack()
 
     private fun handleBack() {
+        activeWidgetEditor?.takeIf { it.isEditing() }?.let {
+            it.exitEditMode(commit = true)
+            return
+        }
         if (settingsPage != null) {
             handleSettingsBack()
             return
@@ -1577,13 +1595,10 @@ class MainActivity : Activity() {
             favoritesView.layoutParams = params
         }
         (widgetContainer.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
-            params.topMargin = dp(
-                if (!preferences.showBuiltInClock) 20
-                else if (landscape) 135
-                else 205,
-            )
-            params.bottomMargin = dp(if (landscape) 120 else 300)
+            params.topMargin = dp(12)
+            params.bottomMargin = dp(if (landscape) 64 else 80)
             widgetContainer.layoutParams = params
+            widgetContainer.post(::applyWidgetGeometries)
         }
     }
 
@@ -1669,7 +1684,7 @@ class MainActivity : Activity() {
                 val compact = ScreenTimeFormatter.compact(result.durationMillis)
                 view.text = launcherText(getString(R.string.screen_time_summary, compact))
                 view.contentDescription =
-                    "Screen on today, ${ScreenTimeFormatter.spoken(result.durationMillis)}. Long press to hide."
+                    "Screen on today, ${ScreenTimeFormatter.spoken(result.durationMillis)}. Long press to move or resize."
                 view.isClickable = false
                 view.isFocusable = false
                 view.setOnClickListener(null)
@@ -1677,7 +1692,7 @@ class MainActivity : Activity() {
             }
             ScreenTimeResult.PermissionRequired -> {
                 view.text = launcherText(getString(R.string.screen_time_permission_required))
-                view.contentDescription = "Open setup instructions to allow screen-on time access. Long press to hide."
+                view.contentDescription = "Open setup instructions to allow screen-on time access. Long press to move or resize."
                 view.isClickable = true
                 view.isFocusable = true
                 view.setOnClickListener { showSettings(SettingsPage.HOME) }
@@ -1685,7 +1700,7 @@ class MainActivity : Activity() {
             }
             ScreenTimeResult.Unavailable -> {
                 view.text = launcherText(getString(R.string.screen_time_unavailable))
-                view.contentDescription = "Screen-on time is unavailable. Long press to hide."
+                view.contentDescription = "Screen-on time is unavailable. Long press to move or resize."
                 view.isClickable = false
                 view.isFocusable = false
                 view.setOnClickListener(null)
@@ -1814,6 +1829,7 @@ class MainActivity : Activity() {
         clockPanel.visibility = if (preferences.showBuiltInClock) View.VISIBLE else View.GONE
         screenTimeView?.setTextColor(wallpaperSecondaryColor)
         screenUsageView?.setTextColor(wallpaperSecondaryColor)
+        widgetEditors.forEach { it.configureEditor(accentColor, primaryColor, mediumTypeface) }
         root.post(::adaptHomeForWindow)
     }
 
@@ -1835,19 +1851,6 @@ class MainActivity : Activity() {
                 preferences.showBuiltInClock = false
                 applyAppearance()
                 Toast.makeText(this, "Clock/date hidden. Restore it in Customization.", Toast.LENGTH_LONG).show()
-            }
-            .setNegativeButton("cancel", null)
-            .show()
-    }
-
-    private fun showScreenTimeActions() {
-        AlertDialog.Builder(this)
-            .setTitle("built-in screen time")
-            .setItems(arrayOf("hide")) { _, _ ->
-                preferences.showScreenTime = false
-                screenTimeRequestGeneration += 1
-                renderWidgets()
-                Toast.makeText(this, "Screen time hidden. Restore it in Home screen settings.", Toast.LENGTH_LONG).show()
             }
             .setNegativeButton("cancel", null)
             .show()
@@ -2693,19 +2696,49 @@ class MainActivity : Activity() {
         if (!::widgetContainer.isInitialized) return
         screenTimeRequestGeneration += 1
         screenTimeRequestInFlight = false
+        activeWidgetEditor = null
         widgetContainer.removeAllViews()
+        widgetEditors.clear()
+        widgetEditorGeometries.clear()
+        widgetEditorAutomaticTops.clear()
         screenTimeView = null
         screenUsageView = null
+        var automaticTopDp = if (!preferences.showBuiltInClock) 8 else if (
+            resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        ) 124 else 190
         if (preferences.showScreenTime) {
             val screenTimeBlock = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.END
                 isLongClickable = true
-                setOnLongClickListener {
-                    showScreenTimeActions()
-                    true
+            }
+            val screenTimeFrame = createWidgetEditorFrame()
+            val defaultScreenTimeHeight = if (preferences.showDetailedUsage) 136 else 80
+            val storedScreenTimeGeometry = loadBuiltInWidgetGeometry(
+                SCREEN_TIME_GEOMETRY_KEY,
+                WidgetGeometry(defaultScreenTimeHeight),
+            )
+            val screenTimeGeometry = storedScreenTimeGeometry.copy(
+                heightDp = max(defaultScreenTimeHeight, storedScreenTimeGeometry.heightDp),
+            )
+            screenTimeFrame.minimumEditorHeightPx = dp(defaultScreenTimeHeight)
+            screenTimeFrame.onGeometryCommitted = { geometry ->
+                widgetEditorGeometries[screenTimeFrame] = geometry
+                saveBuiltInWidgetGeometry(SCREEN_TIME_GEOMETRY_KEY, geometry)
+            }
+            screenTimeFrame.onRemoveRequested = {
+                confirmWidgetRemoval("built-in screen time") {
+                    preferences.showScreenTime = false
+                    screenTimeRequestGeneration += 1
+                    renderWidgets()
+                    Toast.makeText(this, "Screen time hidden. Restore it in Home screen settings.", Toast.LENGTH_LONG).show()
                 }
             }
+            val editScreenTime = View.OnLongClickListener {
+                enterWidgetEditMode(screenTimeFrame)
+                true
+            }
+            screenTimeBlock.setOnLongClickListener(editScreenTime)
             screenTimeView = styledText(12f, wallpaperSecondaryColor, mediumTypeface).apply {
                 id = R.id.home_screen_time
                 gravity = Gravity.END or Gravity.CENTER_VERTICAL
@@ -2713,12 +2746,9 @@ class MainActivity : Activity() {
                 letterSpacing = 0.04f
                 minHeight = dp(44)
                 setPadding(dp(8), 0, dp(8), dp(8))
-                contentDescription = "Screen-on time today. Long press to hide."
+                contentDescription = "Screen-on time today. Long press to move or resize."
                 isLongClickable = true
-                setOnLongClickListener {
-                    showScreenTimeActions()
-                    true
-                }
+                setOnLongClickListener(editScreenTime)
             }
             screenUsageView = styledText(10f, wallpaperSecondaryColor, regularTypeface).apply {
                 id = R.id.home_detailed_usage
@@ -2730,16 +2760,13 @@ class MainActivity : Activity() {
                 setPadding(dp(8), 0, dp(8), dp(8))
                 visibility = View.GONE
                 isLongClickable = true
-                setOnLongClickListener {
-                    showScreenTimeActions()
-                    true
-                }
+                setOnLongClickListener(editScreenTime)
             }
             screenTimeBlock.addView(screenTimeView, LinearLayout.LayoutParams(MATCH, WRAP))
             screenTimeBlock.addView(screenUsageView, LinearLayout.LayoutParams(MATCH, WRAP))
-            widgetContainer.addView(screenTimeBlock, LinearLayout.LayoutParams(MATCH, WRAP).apply {
-                bottomMargin = dp(4)
-            })
+            screenTimeFrame.addView(screenTimeBlock, 0, FrameLayout.LayoutParams(MATCH, MATCH))
+            addWidgetEditor(screenTimeFrame, screenTimeGeometry, automaticTopDp)
+            automaticTopDp += screenTimeGeometry.heightDp + 8
             updateScreenTime(force = true)
         } else {
             screenTimeRequestGeneration += 1
@@ -2752,63 +2779,96 @@ class MainActivity : Activity() {
                 runCatching { appWidgetHost.deleteAppWidgetId(id) }
                 return@forEach
             }
-            valid += WidgetPlacement(id, height)
+            val frame = createWidgetEditorFrame().apply {
+                minimumEditorWidthPx = max(dp(120), info.minWidth)
+                minimumEditorHeightPx = max(dp(80), info.minHeight)
+            }
+            val minimumHeightDp = (frame.minimumEditorHeightPx / resources.displayMetrics.density).toInt()
+            val renderedGeometry = placement.geometry.copy(heightDp = max(height, minimumHeightDp)).sanitized()
+            val renderedPlacement = placement.withGeometry(renderedGeometry)
+            valid += renderedPlacement
             val hostView = appWidgetHost.createView(this, id, info).apply {
                 setAppWidget(id, info)
                 setOnLongClickListener {
-                    showWidgetActions(id)
+                    enterWidgetEditMode(frame)
                     true
                 }
             }
-            widgetContainer.addView(hostView, LinearLayout.LayoutParams(MATCH, dp(height)).apply {
-                bottomMargin = dp(8)
-            })
+            frame.setOnLongClickListener {
+                enterWidgetEditMode(frame)
+                true
+            }
+            frame.onGeometryCommitted = { geometry ->
+                widgetEditorGeometries[frame] = geometry
+                val placements = loadWidgetPlacements()
+                    .map { current -> if (current.appWidgetId == id) current.withGeometry(geometry) else current }
+                saveWidgetPlacements(placements)
+                updateAppWidgetSize(id, frame, geometry.heightDp)
+            }
+            frame.onRemoveRequested = {
+                confirmWidgetRemoval(info.loadLabel(packageManager)?.toString().orEmpty().ifBlank { "widget" }) {
+                    appWidgetHost.deleteAppWidgetId(id)
+                    saveWidgetPlacements(loadWidgetPlacements().filterNot { it.appWidgetId == id })
+                    renderWidgets()
+                }
+            }
+            frame.addView(hostView, 0, FrameLayout.LayoutParams(MATCH, MATCH))
+            addWidgetEditor(frame, renderedGeometry, automaticTopDp)
+            automaticTopDp += renderedGeometry.heightDp + 8
         }
         if (valid != loadWidgetPlacements()) saveWidgetPlacements(valid)
+        widgetContainer.post(::applyWidgetGeometries)
     }
 
-    private fun showWidgetActions(id: Int) {
-        val items = arrayOf(
-            "compact · 100 dp",
-            "standard · 160 dp",
-            "tall · 240 dp",
-            "move up",
-            "move down",
-            "remove",
-        )
+    private fun createWidgetEditorFrame(): EditableWidgetFrame = EditableWidgetFrame(this).apply {
+        configureEditor(accentColor, primaryColor, mediumTypeface)
+        onEditingChanged = { isEditing ->
+            if (isEditing) activeWidgetEditor = this
+            else if (activeWidgetEditor === this) activeWidgetEditor = null
+        }
+    }
+
+    private fun addWidgetEditor(frame: EditableWidgetFrame, geometry: WidgetGeometry, automaticTopDp: Int) {
+        widgetEditors += frame
+        widgetEditorGeometries[frame] = geometry
+        widgetEditorAutomaticTops[frame] = dp(automaticTopDp)
+        widgetContainer.addView(frame, FrameLayout.LayoutParams(MATCH, dp(geometry.heightDp)))
+    }
+
+    private fun applyWidgetGeometries() {
+        if (!::widgetContainer.isInitialized || widgetContainer.width <= 0 || widgetContainer.height <= 0) return
+        widgetEditors.forEach { frame ->
+            val geometry = widgetEditorGeometries[frame] ?: return@forEach
+            frame.applyGeometry(geometry, widgetEditorAutomaticTops[frame] ?: 0)
+        }
+    }
+
+    private fun enterWidgetEditMode(frame: EditableWidgetFrame) {
+        activeWidgetEditor?.takeIf { it !== frame }?.exitEditMode(commit = true)
+        frame.enterEditMode()
+        if (!runtimePreferences.getBoolean(WIDGET_EDITOR_HINT_SHOWN_KEY, false)) {
+            runtimePreferences.edit().putBoolean(WIDGET_EDITOR_HINT_SHOWN_KEY, true).apply()
+            Toast.makeText(this, "Drag to move · drag resize ↘ to size · tap done when finished", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun confirmWidgetRemoval(label: String, remove: () -> Unit) {
         AlertDialog.Builder(this)
-            .setTitle("widget")
-            .setItems(items) { _, which ->
-                val placements = loadWidgetPlacements().toMutableList()
-                val index = placements.indexOfFirst { it.appWidgetId == id }
-                when (which) {
-                    in 0..2 -> {
-                        val height = intArrayOf(100, 160, 240)[which]
-                        saveWidgetPlacements(placements.map { if (it.appWidgetId == id) WidgetPlacement(id, height) else it })
-                        val availableWidthDp = (widgetContainer.width / resources.displayMetrics.density).toInt().coerceAtLeast(1)
-                        appWidgetManager.updateAppWidgetOptions(id, Bundle().apply {
-                            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, availableWidthDp)
-                            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, availableWidthDp)
-                            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, height)
-                            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, height)
-                        })
-                    }
-                    3 -> if (index > 0) {
-                        placements[index] = placements[index - 1].also { placements[index - 1] = placements[index] }
-                        saveWidgetPlacements(placements)
-                    }
-                    4 -> if (index >= 0 && index < placements.lastIndex) {
-                        placements[index] = placements[index + 1].also { placements[index + 1] = placements[index] }
-                        saveWidgetPlacements(placements)
-                    }
-                    5 -> {
-                        appWidgetHost.deleteAppWidgetId(id)
-                        saveWidgetPlacements(placements.filterNot { it.appWidgetId == id })
-                    }
-                }
-                renderWidgets()
-            }
+            .setTitle("remove $label?")
+            .setMessage("You can add it again from Home screen settings.")
+            .setPositiveButton("remove") { _, _ -> remove() }
+            .setNegativeButton("cancel", null)
             .show()
+    }
+
+    private fun updateAppWidgetSize(id: Int, frame: EditableWidgetFrame, heightDp: Int) {
+        val widthDp = (frame.width / resources.displayMetrics.density).toInt().coerceAtLeast(1)
+        appWidgetManager.updateAppWidgetOptions(id, Bundle().apply {
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, widthDp)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, widthDp)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, heightDp)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, heightDp)
+        })
     }
 
     private fun loadWidgetPlacements(): List<WidgetPlacement> = WidgetPlacementCodec.decode(
@@ -2817,6 +2877,13 @@ class MainActivity : Activity() {
 
     private fun saveWidgetPlacements(placements: List<WidgetPlacement>) {
         runtimePreferences.edit().putString("widget.placements", WidgetPlacementCodec.encode(placements)).apply()
+    }
+
+    private fun loadBuiltInWidgetGeometry(key: String, default: WidgetGeometry): WidgetGeometry =
+        WidgetGeometryCodec.decode(runtimePreferences.getString(key, "").orEmpty(), default)
+
+    private fun saveBuiltInWidgetGeometry(key: String, geometry: WidgetGeometry) {
+        runtimePreferences.edit().putString(key, WidgetGeometryCodec.encode(geometry)).apply()
     }
 
     private fun styledText(sizeSp: Float, color: Int, face: Typeface): TextView = TextView(this).apply {
@@ -2880,6 +2947,8 @@ class MainActivity : Activity() {
         const val STATE_QUERY = "drawer.query"
         const val STATE_SETTINGS_PAGE = "settings.page"
         const val CATALOG_CACHE_KEY = "catalog.entries"
+        const val SCREEN_TIME_GEOMETRY_KEY = "widget.builtin.screen_time.geometry"
+        const val WIDGET_EDITOR_HINT_SHOWN_KEY = "widget.editor.hint_shown"
         const val IME_SHOW_DELAY_MS = 120L
         const val DRAWER_TRANSITION_DISTANCE_DP = 28
         const val DRAWER_TRANSITION_OUT_MS = 130L

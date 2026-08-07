@@ -214,8 +214,11 @@ class LauncherUiTest {
         assertTrue(waitForResource("home_detailed_usage").text?.isNotBlank() == true)
         val center = widget.visibleCenter
         device.swipe(center.x, center.y, center.x, center.y, 160)
-        waitForText("built-in screen time")
-        waitForText("hide").click()
+        waitForResource("widget_editor_done")
+        assertNotNull(device.findObject(By.res(PACKAGE_NAME, "widget_editor_resize")))
+        waitForResource("widget_editor_remove").click()
+        waitForText("remove built-in screen time?")
+        waitForText("remove").click()
         assertTrue(eventually { device.findObject(By.res(PACKAGE_NAME, "home_screen_time")) == null })
         waitForDescription("Minimal Launcher Home")
         scenario.onActivity { activity -> assertFalse(preferences(activity).showScreenTime) }
