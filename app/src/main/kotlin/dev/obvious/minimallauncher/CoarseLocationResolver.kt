@@ -14,8 +14,8 @@ class CoarseLocationResolver(context: Context) {
     private val locationManager = context.getSystemService(LocationManager::class.java)
     private val mainExecutor = context.mainExecutor
     private val handler = Handler(Looper.getMainLooper())
-    private var cancellationSignal: CancellationSignal? = null
-    private var legacyListener: LocationListener? = null
+    private val cancellationSignals = mutableListOf<CancellationSignal>()
+    private val legacyListeners = mutableListOf<LocationListener>()
     private var generation = 0
 
     @Suppress("MissingPermission")
@@ -33,38 +33,48 @@ class CoarseLocationResolver(context: Context) {
             return
         }
 
-        val provider = providers.firstOrNull { runCatching { locationManager.isProviderEnabled(it) }.getOrDefault(false) }
-        if (provider == null) {
+        val enabledProviders = providers.filter { runCatching { locationManager.isProviderEnabled(it) }.getOrDefault(false) }
+        if (enabledProviders.isEmpty()) {
             callback(null)
             return
         }
 
         var completed = false
-        fun complete(location: Location?) {
+        var providersRemaining = enabledProviders.size
+        fun finish(location: Location?) {
             if (completed || generation != requestGeneration) return
             completed = true
             cancelPlatformRequest()
             callback(location?.toWeatherCoordinates())
         }
+        fun providerComplete(location: Location?) {
+            if (completed || generation != requestGeneration) return
+            if (location != null) finish(location)
+            else if (--providersRemaining == 0) finish(null)
+        }
 
-        handler.postDelayed({ complete(null) }, LOCATION_TIMEOUT_MS)
+        handler.postDelayed({ finish(null) }, LOCATION_TIMEOUT_MS)
         if (Build.VERSION.SDK_INT >= 30) {
-            cancellationSignal = CancellationSignal()
-            runCatching {
-                locationManager.getCurrentLocation(provider, cancellationSignal, mainExecutor, ::complete)
-            }.onFailure { complete(null) }
-        } else {
-            @Suppress("DEPRECATION")
-            val listener = object : LocationListener {
-                override fun onLocationChanged(location: Location) = complete(location)
-                override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) = Unit
-                override fun onProviderEnabled(provider: String) = Unit
-                override fun onProviderDisabled(provider: String) = complete(null)
+            enabledProviders.forEach { provider ->
+                val signal = CancellationSignal().also(cancellationSignals::add)
+                runCatching {
+                    locationManager.getCurrentLocation(provider, signal, mainExecutor, ::providerComplete)
+                }.onFailure { providerComplete(null) }
             }
-            legacyListener = listener
-            @Suppress("DEPRECATION")
-            runCatching { locationManager.requestSingleUpdate(provider, listener, Looper.getMainLooper()) }
-                .onFailure { complete(null) }
+        } else {
+            enabledProviders.forEach { provider ->
+                @Suppress("DEPRECATION")
+                val listener = object : LocationListener {
+                    override fun onLocationChanged(location: Location) = providerComplete(location)
+                    override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) = Unit
+                    override fun onProviderEnabled(provider: String) = Unit
+                    override fun onProviderDisabled(provider: String) = Unit
+                }
+                legacyListeners += listener
+                @Suppress("DEPRECATION")
+                runCatching { locationManager.requestSingleUpdate(provider, listener, Looper.getMainLooper()) }
+                    .onFailure { providerComplete(null) }
+            }
         }
     }
 
@@ -74,10 +84,10 @@ class CoarseLocationResolver(context: Context) {
     }
 
     private fun cancelPlatformRequest() {
-        cancellationSignal?.cancel()
-        cancellationSignal = null
-        legacyListener?.let { listener -> runCatching { locationManager.removeUpdates(listener) } }
-        legacyListener = null
+        cancellationSignals.forEach(CancellationSignal::cancel)
+        cancellationSignals.clear()
+        legacyListeners.forEach { listener -> runCatching { locationManager.removeUpdates(listener) } }
+        legacyListeners.clear()
     }
 
     private fun availableProviders(): List<String> = listOf(
