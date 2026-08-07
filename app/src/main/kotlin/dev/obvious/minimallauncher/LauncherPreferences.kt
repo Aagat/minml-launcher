@@ -7,6 +7,11 @@ fun Appearance.toggleSolid(): Appearance = if (this == Appearance.SOLID) Appeara
 enum class WeatherLocationMode { MANUAL, APPROXIMATE }
 enum class WeatherTemperatureUnit { SYSTEM, CELSIUS, FAHRENHEIT }
 enum class ClockFormat { SYSTEM, TWELVE_HOUR, TWENTY_FOUR_HOUR }
+enum class LauncherFont(val displayName: String) {
+    GEIST_MONO("Geist Mono"),
+    SYSTEM_MONO("Android Monospace"),
+    SYSTEM_SANS("Android Sans"),
+}
 
 interface PreferenceBackend {
     fun getString(key: String, default: String = ""): String
@@ -110,6 +115,15 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
         get() = backend.getString(KEY_FONT_SCALE, "100").toIntOrNull()?.coerceIn(75, 150) ?: 100
         set(value) = backend.putString(KEY_FONT_SCALE, value.coerceIn(75, 150).toString())
 
+    var launcherFont: LauncherFont
+        get() = runCatching { LauncherFont.valueOf(backend.getString(KEY_LAUNCHER_FONT, LauncherFont.GEIST_MONO.name)) }
+            .getOrDefault(LauncherFont.GEIST_MONO)
+        set(value) = backend.putString(KEY_LAUNCHER_FONT, value.name)
+
+    var animationsEnabled: Boolean
+        get() = backend.getBoolean(KEY_ANIMATIONS_ENABLED, true)
+        set(value) = backend.putBoolean(KEY_ANIMATIONS_ENABLED, value)
+
     var fontColor: Int
         get() = storedColor(KEY_FONT_COLOR, DEFAULT_FONT_COLOR)
         set(value) = backend.putString(KEY_FONT_COLOR, encodeColor(value))
@@ -208,6 +222,8 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
         const val DEFAULT_DRAWER_DISMISS_SENSITIVITY = 65
         const val KEY_CUSTOM_FILTERS = "filter.custom.categories"
         const val KEY_FONT_SCALE = "customization.font_scale"
+        const val KEY_LAUNCHER_FONT = "customization.launcher_font"
+        const val KEY_ANIMATIONS_ENABLED = "customization.animations_enabled"
         const val KEY_FONT_COLOR = "customization.font_color"
         const val KEY_ACCENT_COLOR = "customization.accent_color"
         const val KEY_SOLID_BACKGROUND_COLOR = "customization.solid_background_color"

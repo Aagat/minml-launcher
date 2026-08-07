@@ -107,6 +107,7 @@ class MainActivity : Activity() {
     private var locationDeniedThisSession = false
     private var settingsPage: SettingsPage? = null
     private val settingsScrollPositions = mutableMapOf<SettingsPage, Int>()
+    private var filterTransitionGeneration = 0
 
     private val wallpaperColorsChangedListener = WallpaperManager.OnColorsChangedListener { _: WallpaperColors?, _: Int ->
         if (::preferences.isInitialized && preferences.appearance == Appearance.AUTO && ::contrastOverlay.isInitialized) {
@@ -130,11 +131,10 @@ class MainActivity : Activity() {
                 View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
             )
 
-        regularTypeface = resources.getFont(R.font.geist_mono_nerd_regular)
-        mediumTypeface = resources.getFont(R.font.geist_mono_nerd_medium)
         preferences = LauncherPreferences(
             SharedPreferenceBackend(getSharedPreferences(USER_PREFERENCES, MODE_PRIVATE)),
         )
+        loadLauncherTypefaces()
         runtimePreferences = getSharedPreferences(RUNTIME_PREFERENCES, MODE_PRIVATE)
         weatherRepository = WeatherRepository(runtimePreferences)
         coarseLocationResolver = CoarseLocationResolver(this)
@@ -518,6 +518,9 @@ class MainActivity : Activity() {
 
     private fun renderAppearanceSettings(body: LinearLayout) {
         addSettingsSection(body, "typography")
+        addSettingsRow(body, "Font family", "Choose the launcher typeface", preferences.launcherFont.displayName) {
+            showFontFamilyEditor()
+        }
         addSettingsRow(body, "Font size", "Launcher text scale", "${preferences.fontScalePercent}%") { showFontSizeEditor() }
         addSettingsRow(body, "Font color", "Primary launcher text", formatColor(preferences.fontColor)) { showColorEditor(accent = false) }
         addSettingsRow(body, "Accent color", "Filters, controls, and highlights", formatColor(preferences.accentColor)) { showColorEditor(accent = true) }
@@ -535,6 +538,11 @@ class MainActivity : Activity() {
         ) { showSolidBackgroundColorEditor() }
 
         addSettingsSection(body, "system interface")
+        addSettingsRow(body, "Animations", "Drawer and filter transitions", onOff(preferences.animationsEnabled)) {
+            preferences.animationsEnabled = !preferences.animationsEnabled
+            if (!preferences.animationsEnabled) resetMotionState()
+            renderSettingsPage()
+        }
         addSettingsRow(body, "Hide status bar", "Use the top system-bar area", onOff(preferences.hideStatusBar)) {
             preferences.hideStatusBar = !preferences.hideStatusBar
             applyStatusBarPreference()
@@ -637,6 +645,23 @@ class MainActivity : Activity() {
     }
 
     private fun onOff(value: Boolean): String = if (value) "on" else "off"
+
+    private fun loadLauncherTypefaces() {
+        when (preferences.launcherFont) {
+            LauncherFont.GEIST_MONO -> {
+                regularTypeface = resources.getFont(R.font.geist_mono_nerd_regular)
+                mediumTypeface = resources.getFont(R.font.geist_mono_nerd_medium)
+            }
+            LauncherFont.SYSTEM_MONO -> {
+                regularTypeface = Typeface.create("monospace", Typeface.NORMAL)
+                mediumTypeface = Typeface.create("monospace", Typeface.BOLD)
+            }
+            LauncherFont.SYSTEM_SANS -> {
+                regularTypeface = Typeface.create("sans-serif", Typeface.NORMAL)
+                mediumTypeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            }
+        }
+    }
 
     private fun applyDrawerPresentation() {
         searchUnderline.visibility = if (preferences.showSearchUnderline) View.VISIBLE else View.GONE
@@ -907,7 +932,7 @@ class MainActivity : Activity() {
                 setBackgroundColor(Color.TRANSPARENT)
                 accessibilityTraversalAfter = previousFocusId
                 nextFocusUpId = previousFocusId
-                setOnClickListener { setFilter(filter) }
+                setOnClickListener { setFilter(filter, filterDirectionTo(filter)) }
             }.also { previousFocusId = it.id }, LinearLayout.LayoutParams(WRAP, dp(48)))
         }
         updateDrawerFocusTraversal()
@@ -1134,20 +1159,134 @@ class MainActivity : Activity() {
         appList.post { updateScrollThumb(adapter.count) }
     }
 
-    private fun setFilter(filter: FilterSpec) {
+    private fun setFilter(filter: FilterSpec, transitionDirection: Int = 0) {
         if (currentFilter.id == filter.id) return
+        if (preferences.animationsEnabled && drawerOpen && transitionDirection != 0) {
+            animateFilterChange(filter, transitionDirection)
+            return
+        }
+        cancelFilterTransition()
+        applyFilter(filter)
+    }
+
+    private fun applyFilter(filter: FilterSpec) {
         currentFilter = filter
         appList.setSelection(0)
         renderDrawer()
         filtersView.announceForAccessibility("${filter.displayName} filter")
     }
 
-    private fun cycleFilter(step: Int) = setFilter(FilterCatalog.cycle(availableFilters(), currentFilter.id, step))
+    private fun cycleFilter(step: Int) = setFilter(
+        FilterCatalog.cycle(availableFilters(), currentFilter.id, step),
+        transitionDirection = step,
+    )
+
+    private fun filterDirectionTo(filter: FilterSpec): Int {
+        val filters = availableFilters()
+        val currentIndex = filters.indexOfFirst { it.id == currentFilter.id }
+        val targetIndex = filters.indexOfFirst { it.id == filter.id }
+        return if (targetIndex >= currentIndex) 1 else -1
+    }
+
+    private fun animateFilterChange(filter: FilterSpec, direction: Int) {
+        cancelFilterTransition()
+        val generation = ++filterTransitionGeneration
+        val distance = dp(FILTER_TRANSITION_DISTANCE_DP).toFloat()
+        val outgoingTranslation = -direction.coerceIn(-1, 1) * distance
+        val secondaryViews = listOf(appList, emptyState, scrollTrack, scrollThumb)
+        appList.isEnabled = false
+        secondaryViews.forEach { view ->
+            view.animate()
+                .alpha(FILTER_TRANSITION_DIM_ALPHA)
+                .translationX(outgoingTranslation)
+                .setDuration(FILTER_TRANSITION_OUT_MS)
+                .start()
+        }
+        drawerHeader.animate()
+            .alpha(FILTER_TRANSITION_DIM_ALPHA)
+            .translationX(outgoingTranslation)
+            .setDuration(FILTER_TRANSITION_OUT_MS)
+            .withEndAction {
+                if (generation != filterTransitionGeneration) return@withEndAction
+                applyFilter(filter)
+                val incomingTranslation = direction.coerceIn(-1, 1) * distance
+                secondaryViews.forEach { view ->
+                    view.animate().cancel()
+                    view.translationX = incomingTranslation
+                    view.alpha = FILTER_TRANSITION_DIM_ALPHA
+                    view.animate()
+                        .alpha(1f)
+                        .translationX(0f)
+                        .setDuration(FILTER_TRANSITION_IN_MS)
+                        .start()
+                }
+                drawerHeader.animate()
+                    .alpha(1f)
+                    .translationX(0f)
+                    .setDuration(FILTER_TRANSITION_IN_MS)
+                    .withEndAction {
+                        if (generation == filterTransitionGeneration) appList.isEnabled = true
+                    }
+                    .start()
+            }
+            .start()
+    }
+
+    private fun cancelFilterTransition() {
+        filterTransitionGeneration++
+        if (!::appList.isInitialized) return
+        listOf(appList, emptyState, drawerHeader, scrollTrack, scrollThumb).forEach { view ->
+            view.animate().cancel()
+            view.alpha = 1f
+            view.translationX = 0f
+        }
+        appList.isEnabled = true
+    }
+
+    private fun resetMotionState() {
+        cancelFilterTransition()
+        if (!::drawer.isInitialized || !::home.isInitialized) return
+        drawer.animate().cancel()
+        home.animate().cancel()
+        drawer.alpha = 1f
+        drawer.translationY = 0f
+        home.alpha = 1f
+        drawer.visibility = if (drawerOpen) View.VISIBLE else View.GONE
+        home.visibility = if (drawerOpen) View.GONE else View.VISIBLE
+    }
 
     private fun openDrawer(seed: String = "") {
+        val animate = preferences.animationsEnabled && !drawerOpen
         drawerOpen = true
-        home.visibility = View.GONE
+        drawer.animate().cancel()
+        home.animate().cancel()
         drawer.visibility = View.VISIBLE
+        if (animate) {
+            drawer.alpha = 0f
+            drawer.translationY = dp(DRAWER_TRANSITION_DISTANCE_DP).toFloat()
+            home.visibility = View.VISIBLE
+            home.alpha = 1f
+            home.animate()
+                .alpha(0f)
+                .setDuration(DRAWER_TRANSITION_OUT_MS)
+                .withEndAction {
+                    if (drawerOpen) {
+                        home.visibility = View.GONE
+                        home.alpha = 1f
+                    }
+                }
+                .start()
+            drawer.animate()
+                .alpha(1f)
+                .translationY(0f)
+                .setDuration(DRAWER_TRANSITION_IN_MS)
+                .start()
+        } else {
+            home.visibility = View.GONE
+            home.alpha = 1f
+            drawer.alpha = 1f
+            drawer.translationY = 0f
+        }
         if (seed.isNotEmpty()) searchInput.setText(seed)
         renderDrawer()
         appList.setSelection(0)
@@ -1168,13 +1307,39 @@ class MainActivity : Activity() {
     }
 
     private fun closeDrawer() {
+        if (!drawerOpen && drawer.visibility != View.VISIBLE) return
+        val animate = preferences.animationsEnabled && drawer.visibility == View.VISIBLE
         getSystemService(InputMethodManager::class.java).hideSoftInputFromWindow(searchInput.windowToken, 0)
         searchInput.clearFocus()
         searchInput.setText("")
         currentFilter = FilterSpec.builtIn(DrawerFilter.ALL)
         drawerOpen = false
-        drawer.visibility = View.GONE
-        home.visibility = View.VISIBLE
+        cancelFilterTransition()
+        drawer.animate().cancel()
+        home.animate().cancel()
+        if (animate) {
+            home.visibility = View.VISIBLE
+            home.alpha = 0f
+            home.animate().alpha(1f).setDuration(DRAWER_TRANSITION_IN_MS).start()
+            drawer.animate()
+                .alpha(0f)
+                .translationY(dp(DRAWER_TRANSITION_DISTANCE_DP).toFloat())
+                .setDuration(DRAWER_TRANSITION_OUT_MS)
+                .withEndAction {
+                    if (!drawerOpen) {
+                        drawer.visibility = View.GONE
+                        drawer.alpha = 1f
+                        drawer.translationY = 0f
+                    }
+                }
+                .start()
+        } else {
+            drawer.visibility = View.GONE
+            drawer.alpha = 1f
+            drawer.translationY = 0f
+            home.visibility = View.VISIBLE
+            home.alpha = 1f
+        }
         home.requestFocus()
     }
 
@@ -1600,6 +1765,25 @@ class MainActivity : Activity() {
                 preferences.appListRightMarginDp = rightSlider.progress
                 positionDrawerChildren()
                 renderSettingsPage()
+            }
+            .setNegativeButton("cancel", null)
+            .show()
+    }
+
+    private fun showFontFamilyEditor() {
+        val choices = LauncherFont.entries
+        var selectedIndex = choices.indexOf(preferences.launcherFont)
+        AlertDialog.Builder(this)
+            .setTitle("font family")
+            .setSingleChoiceItems(choices.map { it.displayName }.toTypedArray(), selectedIndex) { _, which ->
+                selectedIndex = which
+            }
+            .setPositiveButton("save") { _, _ ->
+                val selectedFont = choices[selectedIndex]
+                if (selectedFont != preferences.launcherFont) {
+                    preferences.launcherFont = selectedFont
+                    recreate()
+                }
             }
             .setNegativeButton("cancel", null)
             .show()
@@ -2141,6 +2325,13 @@ class MainActivity : Activity() {
         const val STATE_SETTINGS_PAGE = "settings.page"
         const val CATALOG_CACHE_KEY = "catalog.entries"
         const val IME_SHOW_DELAY_MS = 120L
+        const val DRAWER_TRANSITION_DISTANCE_DP = 28
+        const val DRAWER_TRANSITION_OUT_MS = 130L
+        const val DRAWER_TRANSITION_IN_MS = 180L
+        const val FILTER_TRANSITION_DISTANCE_DP = 32
+        const val FILTER_TRANSITION_OUT_MS = 70L
+        const val FILTER_TRANSITION_IN_MS = 110L
+        const val FILTER_TRANSITION_DIM_ALPHA = 0.18f
         const val WEATHER_REFRESH_INTERVAL_MS = 60 * 60 * 1000L
         const val SETTINGS_BACKGROUND_COLOR = 0xFF0B0B0D.toInt()
         const val SETTINGS_PRIMARY_COLOR = 0xFFF4F4F2.toInt()

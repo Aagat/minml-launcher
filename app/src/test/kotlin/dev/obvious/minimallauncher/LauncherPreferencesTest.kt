@@ -29,6 +29,8 @@ class LauncherPreferencesTest {
             customFilters = listOf(CustomFilter("custom:focus", "Focus"), CustomFilter("custom:focus", "Duplicate"))
             setCustomMembership("custom:focus", listOf("b", "a"))
             fontScalePercent = 118
+            launcherFont = LauncherFont.SYSTEM_MONO
+            animationsEnabled = false
             fontColor = 0xFF112233.toInt()
             accentColor = 0xFFABCDEF.toInt()
             solidBackgroundColor = 0xFF102030.toInt()
@@ -57,6 +59,8 @@ class LauncherPreferencesTest {
         assertEquals(listOf(CustomFilter("custom:focus", "Focus")), restored.customFilters)
         assertEquals(setOf("a", "b"), restored.customMembership("custom:focus"))
         assertEquals(118, restored.fontScalePercent)
+        assertEquals(LauncherFont.SYSTEM_MONO, restored.launcherFont)
+        assertFalse(restored.animationsEnabled)
         assertEquals(0xFF112233.toInt(), restored.fontColor)
         assertEquals(0xFFABCDEF.toInt(), restored.accentColor)
         assertEquals(0xFF102030.toInt(), restored.solidBackgroundColor)
@@ -94,6 +98,8 @@ class LauncherPreferencesTest {
     @Test fun `display customization defaults and clamps font scale`() {
         val preferences = LauncherPreferences(MapBackend())
         assertEquals(100, preferences.fontScalePercent)
+        assertEquals(LauncherFont.GEIST_MONO, preferences.launcherFont)
+        assertTrue(preferences.animationsEnabled)
         assertEquals(0xFFF4F4F2.toInt(), preferences.fontColor)
         assertEquals(0xFFB7F36B.toInt(), preferences.accentColor)
         assertEquals(0xFF000000.toInt(), preferences.solidBackgroundColor)
@@ -116,6 +122,11 @@ class LauncherPreferencesTest {
         assertEquals(96, preferences.appListTopMarginDp)
         assertEquals(0, preferences.appListRightMarginDp)
         assertEquals(64, preferences.searchLeftMarginDp)
+    }
+
+    @Test fun `unknown font values fall back to Geist Mono`() {
+        val backend = MapBackend().apply { putString("customization.launcher_font", "NOT_A_FONT") }
+        assertEquals(LauncherFont.GEIST_MONO, LauncherPreferences(backend).launcherFont)
     }
 
     private class MapBackend : PreferenceBackend {
