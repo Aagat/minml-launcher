@@ -15,8 +15,17 @@ class GestureStateMachineTest {
     @Test fun `vertical movement wins before a row can become a filter swipe`() {
         val gesture = GestureStateMachine(threshold = 10f)
         gesture.begin(10f, 10f)
-        assertEquals(GestureDecision.VERTICAL, gesture.update(14f, 40f))
-        assertEquals(GestureDecision.VERTICAL, gesture.update(80f, 42f))
+        assertEquals(GestureDecision.VERTICAL_DOWN, gesture.update(14f, 40f))
+        assertEquals(GestureDecision.VERTICAL_DOWN, gesture.update(80f, 42f))
+    }
+
+    @Test fun `vertical direction distinguishes drawer close from upward scrolling`() {
+        val gesture = GestureStateMachine(threshold = 10f)
+        gesture.begin(100f, 100f)
+        assertEquals(GestureDecision.VERTICAL_UP, gesture.update(98f, 70f))
+
+        gesture.begin(100f, 100f)
+        assertEquals(GestureDecision.VERTICAL_DOWN, gesture.update(102f, 130f))
     }
 
     @Test fun `ambiguous diagonal remains undecided until direction dominates`() {

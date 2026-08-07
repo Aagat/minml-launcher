@@ -119,12 +119,12 @@ class MainActivity : Activity() {
             ?: DrawerFilter.ALL
         val restoredDrawer = savedInstanceState?.getBoolean(STATE_DRAWER_OPEN, false) == true
         val restoredQuery = savedInstanceState?.getString(STATE_QUERY).orEmpty()
-        if (restoredDrawer) openDrawer(focusSearch = false, seed = restoredQuery)
+        if (restoredDrawer) openDrawer(seed = restoredQuery)
 
         catalog = AppCatalog(this, ::onCatalogChanged)
         catalog.start()
         if (intent.action == Intent.ACTION_SEARCH) {
-            openDrawer(focusSearch = true, seed = intent.getStringExtra(SearchManager.QUERY).orEmpty())
+            openDrawer(seed = intent.getStringExtra(SearchManager.QUERY).orEmpty())
         }
         updateClock()
         handler.post(clockTicker)
@@ -140,7 +140,7 @@ class MainActivity : Activity() {
         super.onNewIntent(intent)
         setIntent(intent)
         if (intent.action == Intent.ACTION_SEARCH) {
-            openDrawer(focusSearch = true, seed = intent.getStringExtra(SearchManager.QUERY).orEmpty())
+            openDrawer(seed = intent.getStringExtra(SearchManager.QUERY).orEmpty())
         } else if (intent.action == Intent.ACTION_MAIN && intent.hasCategory(Intent.CATEGORY_HOME) && drawerOpen) {
             closeDrawer()
         }
@@ -197,7 +197,12 @@ class MainActivity : Activity() {
                 )
             }
             home.setPadding(bars.left, bars.top, bars.right, bars.bottom)
-            drawer.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            val drawerBottom = if (android.os.Build.VERSION.SDK_INT >= 30 && imeVisible) {
+                max(bars.bottom, insets.getInsets(WindowInsets.Type.ime()).bottom)
+            } else {
+                bars.bottom
+            }
+            drawer.setPadding(bars.left, bars.top, bars.right, drawerBottom)
             drawer.post(::positionDrawerChildren)
             insets
         }
@@ -219,7 +224,7 @@ class MainActivity : Activity() {
 
                 override fun performAccessibilityAction(host: View, action: Int, args: Bundle?): Boolean {
                     if (action == ACTION_OPEN_APPS) {
-                        openDrawer(focusSearch = true)
+                        openDrawer()
                         return true
                     }
                     return super.performAccessibilityAction(host, action, args)
@@ -279,6 +284,8 @@ class MainActivity : Activity() {
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
             contentDescription = "App drawer"
             onFilterSwipe = { cycleFilter(it) }
+            onSwipeDown = { closeDrawer() }
+            canSwipeDown = { !appList.canScrollVertically(-1) }
         }
 
         appList = ListView(this).apply {
@@ -403,50 +410,49 @@ class MainActivity : Activity() {
         val availableHeight = drawer.height - drawer.paddingTop - drawer.paddingBottom
         val availableWidth = drawer.width - drawer.paddingLeft - drawer.paddingRight
         val columnWidth = min(dp(300), max(dp(220), availableWidth - dp(32)))
-        val listTop = if (availableHeight < dp(650)) dp(16) else (availableHeight * 0.33f).toInt()
-        val controlsHeight = dp(112)
-        val listHeight = max(dp(120), availableHeight - listTop - controlsHeight)
-        val right = drawer.paddingRight + dp(12)
-        val absoluteTop = drawer.paddingTop + listTop
+        val listTop = min(dp(24), max(0, availableHeight / 16))
+        val controlsHeight = dp(102)
+        val listHeight = max(0, availableHeight - listTop - controlsHeight)
+        val right = dp(12)
 
         appList.layoutParams = (appList.layoutParams as FrameLayout.LayoutParams).apply {
             width = columnWidth
             height = listHeight
             gravity = Gravity.END or Gravity.TOP
-            topMargin = absoluteTop
+            topMargin = listTop
             rightMargin = right
         }
         emptyState.layoutParams = (emptyState.layoutParams as FrameLayout.LayoutParams).apply {
             width = columnWidth
             height = listHeight
             gravity = Gravity.END or Gravity.TOP
-            topMargin = absoluteTop
+            topMargin = listTop
             rightMargin = right
         }
         drawerHeader.layoutParams = (drawerHeader.layoutParams as FrameLayout.LayoutParams).apply {
             width = columnWidth
             height = dp(24)
             gravity = Gravity.END or Gravity.TOP
-            topMargin = max(drawer.paddingTop, absoluteTop - dp(26))
+            topMargin = max(0, listTop - dp(26))
             rightMargin = right + dp(14)
         }
         filtersView.layoutParams = (filtersView.layoutParams as FrameLayout.LayoutParams).apply {
             width = columnWidth
             gravity = Gravity.END or Gravity.BOTTOM
             rightMargin = right
-            bottomMargin = drawer.paddingBottom + dp(54)
+            bottomMargin = dp(54)
         }
         val searchFrame = searchInput.parent.parent as View
         searchFrame.layoutParams = (searchFrame.layoutParams as FrameLayout.LayoutParams).apply {
             width = columnWidth
             gravity = Gravity.END or Gravity.BOTTOM
             rightMargin = right
-            bottomMargin = drawer.paddingBottom + dp(6)
+            bottomMargin = dp(6)
         }
         scrollTrack.layoutParams = (scrollTrack.layoutParams as FrameLayout.LayoutParams).apply {
             height = listHeight
             gravity = Gravity.END or Gravity.TOP
-            topMargin = absoluteTop
+            topMargin = listTop
             rightMargin = right + dp(2)
         }
         updateScrollThumb(appList.firstVisiblePosition, appList.childCount, adapter.count)
@@ -575,21 +581,25 @@ class MainActivity : Activity() {
 
     private fun cycleFilter(step: Int) = setFilter(currentFilter.cycle(step))
 
-    private fun openDrawer(focusSearch: Boolean = false, seed: String = "") {
+    private fun openDrawer(seed: String = "") {
         drawerOpen = true
         home.visibility = View.GONE
         drawer.visibility = View.VISIBLE
         if (seed.isNotEmpty()) searchInput.setText(seed)
         renderDrawer()
+        appList.setSelection(0)
         drawer.post {
             positionDrawerChildren()
-            if (focusSearch) {
-                searchInput.requestFocus()
-                searchInput.setSelection(searchInput.length())
-                getSystemService(InputMethodManager::class.java).showSoftInput(searchInput, InputMethodManager.SHOW_IMPLICIT)
-            } else {
-                drawer.requestFocus()
-            }
+            searchInput.requestFocus()
+            searchInput.setSelection(searchInput.length())
+            searchInput.postDelayed({
+                if (!drawerOpen) return@postDelayed
+                if (android.os.Build.VERSION.SDK_INT >= 30) {
+                    searchInput.windowInsetsController?.show(WindowInsets.Type.ime())
+                }
+                getSystemService(InputMethodManager::class.java)
+                    .showSoftInput(searchInput, InputMethodManager.SHOW_IMPLICIT)
+            }, IME_SHOW_DELAY_MS)
         }
     }
 
@@ -626,7 +636,7 @@ class MainActivity : Activity() {
         if (event.action == KeyEvent.ACTION_DOWN && !drawerOpen && !event.isCtrlPressed && !event.isAltPressed && !event.isMetaPressed) {
             val unicode = event.unicodeChar
             if (unicode != 0 && !Character.isISOControl(unicode)) {
-                openDrawer(focusSearch = true, seed = String(Character.toChars(unicode)))
+                openDrawer(seed = String(Character.toChars(unicode)))
                 return true
             }
         }
@@ -1054,6 +1064,7 @@ class MainActivity : Activity() {
         const val STATE_FILTER = "drawer.filter"
         const val STATE_QUERY = "drawer.query"
         const val CATALOG_CACHE_KEY = "catalog.entries"
+        const val IME_SHOW_DELAY_MS = 120L
         const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
         const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
         const val PRIMARY = 0xFFF4F4F2.toInt()

@@ -8,24 +8,42 @@ import android.widget.FrameLayout
 import android.os.Handler
 import android.os.Looper
 import kotlin.math.abs
+import kotlin.math.max
 
 class FilterGestureLayout @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
 ) : FrameLayout(context, attrs) {
     var onFilterSwipe: ((Int) -> Unit)? = null
+    var onSwipeDown: (() -> Unit)? = null
+    var canSwipeDown: (() -> Boolean)? = null
     private val gesture = GestureStateMachine(ViewConfiguration.get(context).scaledTouchSlop.toFloat())
+    private val swipeDownThreshold = max(
+        ViewConfiguration.get(context).scaledTouchSlop * 4f,
+        resources.displayMetrics.density * 48f,
+    )
+    private var downY = 0f
     private var handled = false
+    private var swipeDownEligible = false
 
     override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 gesture.begin(event.x, event.y)
+                downY = event.y
                 handled = false
+                swipeDownEligible = canSwipeDown?.invoke() != false
             }
             MotionEvent.ACTION_MOVE -> {
                 val decision = gesture.update(event.x, event.y)
                 if (decision == GestureDecision.HORIZONTAL_LEFT || decision == GestureDecision.HORIZONTAL_RIGHT) {
+                    parent?.requestDisallowInterceptTouchEvent(true)
+                    return true
+                }
+                if (
+                    decision == GestureDecision.VERTICAL_DOWN &&
+                    swipeDownEligible
+                ) {
                     parent?.requestDisallowInterceptTouchEvent(true)
                     return true
                 }
@@ -45,6 +63,14 @@ class FilterGestureLayout @JvmOverloads constructor(
                 } else if (!handled && decision == GestureDecision.HORIZONTAL_RIGHT) {
                     handled = true
                     onFilterSwipe?.invoke(-1)
+                } else if (
+                    !handled &&
+                    decision == GestureDecision.VERTICAL_DOWN &&
+                    event.y - downY >= swipeDownThreshold &&
+                    swipeDownEligible
+                ) {
+                    handled = true
+                    onSwipeDown?.invoke()
                 }
             }
             MotionEvent.ACTION_UP -> {

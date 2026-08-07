@@ -2,7 +2,13 @@ package dev.obvious.minimallauncher
 
 import kotlin.math.abs
 
-enum class GestureDecision { UNDECIDED, HORIZONTAL_LEFT, HORIZONTAL_RIGHT, VERTICAL }
+enum class GestureDecision {
+    UNDECIDED,
+    HORIZONTAL_LEFT,
+    HORIZONTAL_RIGHT,
+    VERTICAL_UP,
+    VERTICAL_DOWN,
+}
 
 class GestureStateMachine(
     private val threshold: Float,
@@ -28,7 +34,7 @@ class GestureStateMachine(
         if (absX < threshold && absY < threshold) return decision
         decision = when {
             absX > absY * dominance -> if (dx < 0) GestureDecision.HORIZONTAL_LEFT else GestureDecision.HORIZONTAL_RIGHT
-            absY > absX * dominance -> GestureDecision.VERTICAL
+            absY > absX * dominance -> if (dy < 0) GestureDecision.VERTICAL_UP else GestureDecision.VERTICAL_DOWN
             else -> GestureDecision.UNDECIDED
         }
         return decision
