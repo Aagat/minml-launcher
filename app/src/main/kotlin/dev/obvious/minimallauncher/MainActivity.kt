@@ -1,5 +1,13 @@
 package dev.obvious.minimallauncher
 
+import dev.obvious.minimallauncher.appearance.*
+import dev.obvious.minimallauncher.catalog.*
+import dev.obvious.minimallauncher.drawer.*
+import dev.obvious.minimallauncher.gesture.*
+import dev.obvious.minimallauncher.home.*
+import dev.obvious.minimallauncher.preferences.*
+import dev.obvious.minimallauncher.settings.*
+import dev.obvious.minimallauncher.weather.*
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
