@@ -5,6 +5,7 @@
     <item name="home_clock" type="id" />
     <item name="home_screen_time" type="id" />
     <item name="home_detailed_usage" type="id" />
+    <item name="home_favorites" type="id" />
     <item name="widget_editor_move" type="id" />
     <item name="widget_editor_resize" type="id" />
     <item name="widget_editor_done" type="id" />

@@ -69,6 +69,8 @@ class MainActivity : Activity() {
     private var screenTimeView: TextView? = null
     private var screenUsageView: TextView? = null
     private lateinit var homeRolePrompt: Button
+    private lateinit var favoritesContainer: FrameLayout
+    private lateinit var favoritesEditor: EditableWidgetFrame
     private lateinit var favoritesView: LinearLayout
     private lateinit var widgetContainer: FrameLayout
     private var clockWidgetEditor: EditableWidgetFrame? = null
@@ -404,6 +406,17 @@ class MainActivity : Activity() {
         addSettingsSection(body, "favorites and widgets")
         addSettingsRow(body, "Favorite apps", "Choose the right-aligned Home shortcuts", "${preferences.favorites.size}") {
             showFavoriteEditor()
+        }
+        if (preferences.favorites.isNotEmpty()) {
+            addSettingsRow(
+                body,
+                "Favorite position",
+                "Move the entire favorites block directly on Home",
+                "arrange",
+            ) {
+                closeSettings()
+                favoritesEditor.takeIf { it.visibility == View.VISIBLE }?.let(::enterWidgetEditMode)
+            }
         }
         addSettingsRow(body, "Add widget", "Open Android's widget picker", "system") { pickWidget() }
         if (preferences.showBuiltInClock || preferences.showScreenTime || loadWidgetPlacements().isNotEmpty()) {
@@ -909,14 +922,38 @@ class MainActivity : Activity() {
             setMargins(dp(12), dp(12), dp(12), dp(80))
         })
 
+        favoritesContainer = FrameLayout(this).apply {
+            clipChildren = false
+            clipToPadding = false
+        }
+        home.addView(favoritesContainer, FrameLayout.LayoutParams(MATCH, MATCH).apply {
+            gravity = Gravity.TOP
+            setMargins(dp(12), dp(12), dp(12), dp(92))
+        })
+
         favoritesView = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.END
         }
-        home.addView(favoritesView, FrameLayout.LayoutParams(dp(270), WRAP).apply {
-            gravity = Gravity.END or Gravity.BOTTOM
-            setMargins(0, 0, dp(12), dp(92))
-        })
+        favoritesEditor = createWidgetEditorFrame().apply {
+            id = R.id.home_favorites
+            configureEditorBehavior(
+                itemName = "favorites",
+                allowResize = false,
+                secondaryActionLabel = getString(R.string.widget_editor_reset_label),
+                secondaryActionDescription = "Reset favorites to the bottom-right position",
+            )
+            onGeometryCommitted = { geometry ->
+                preferences.favoritesPosition = HomeElementPosition(geometry.xPermille, geometry.yPermille)
+            }
+            onRemoveRequested = {
+                preferences.favoritesPosition = HomeElementPosition.DEFAULT
+                applyFavoritePosition()
+                Toast.makeText(this@MainActivity, "Favorites returned to the bottom right", Toast.LENGTH_SHORT).show()
+            }
+        }
+        favoritesEditor.addView(favoritesView, 0, FrameLayout.LayoutParams(MATCH, MATCH))
+        favoritesContainer.addView(favoritesEditor, FrameLayout.LayoutParams(dp(270), dp(48)))
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -1272,7 +1309,11 @@ class MainActivity : Activity() {
         favoritesView.removeAllViews()
         val byId = allApps.associateBy { it.stableId }
         val aliases = preferences.appAliases
-        preferences.favorites.mapNotNull(byId::get).map { AppPresentationPolicy.presented(it, aliases) }.take(6).forEachIndexed { index, app ->
+        val visibleFavorites = preferences.favorites
+            .mapNotNull(byId::get)
+            .map { AppPresentationPolicy.presented(it, aliases) }
+            .take(6)
+        visibleFavorites.forEachIndexed { index, app ->
             favoritesView.addView(Button(this).apply {
                 text = launcherText(app.label)
                 contentDescription = "Open ${app.label}"
@@ -1291,6 +1332,15 @@ class MainActivity : Activity() {
                     true
                 }
             }, LinearLayout.LayoutParams(MATCH, dp(48)))
+        }
+        favoritesEditor.exitEditMode(commit = false)
+        favoritesEditor.visibility = if (visibleFavorites.isEmpty()) View.GONE else View.VISIBLE
+        if (visibleFavorites.isNotEmpty()) {
+            favoritesEditor.layoutParams = (favoritesEditor.layoutParams as FrameLayout.LayoutParams).apply {
+                width = dp(270)
+                height = dp(visibleFavorites.size * 48)
+            }
+            favoritesContainer.post(::applyFavoritePosition)
         }
     }
 
@@ -1597,9 +1647,10 @@ class MainActivity : Activity() {
     private fun adaptHomeForWindow() {
         if (!::timeView.isInitialized || root.width == 0 || root.height == 0) return
         val landscape = root.width > root.height
-        (favoritesView.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
+        (favoritesContainer.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
             params.bottomMargin = dp(if (landscape) 12 else 92)
-            favoritesView.layoutParams = params
+            favoritesContainer.layoutParams = params
+            favoritesContainer.post(::applyFavoritePosition)
         }
         (widgetContainer.layoutParams as? FrameLayout.LayoutParams)?.let { params ->
             params.topMargin = dp(12)
@@ -1837,6 +1888,7 @@ class MainActivity : Activity() {
         screenTimeView?.setTextColor(wallpaperSecondaryColor)
         screenUsageView?.setTextColor(wallpaperSecondaryColor)
         widgetEditors.forEach { it.configureEditor(accentColor, primaryColor, mediumTypeface) }
+        favoritesEditor.configureEditor(accentColor, primaryColor, mediumTypeface)
         root.post(::adaptHomeForWindow)
     }
 
@@ -2518,7 +2570,7 @@ class MainActivity : Activity() {
     }
 
     private fun showFavoriteActions(index: Int, app: AppEntry) {
-        val actions = arrayOf("move up", "move down", "remove")
+        val actions = arrayOf("move up", "move down", "move favorites block", "remove")
         AlertDialog.Builder(this)
             .setTitle(settingsAppLabel(app))
             .setItems(actions) { _, which ->
@@ -2527,7 +2579,11 @@ class MainActivity : Activity() {
                 when (which) {
                     0 -> if (actualIndex > 0) favorites[actualIndex] = favorites[actualIndex - 1].also { favorites[actualIndex - 1] = favorites[actualIndex] }
                     1 -> if (actualIndex < favorites.lastIndex) favorites[actualIndex] = favorites[actualIndex + 1].also { favorites[actualIndex + 1] = favorites[actualIndex] }
-                    2 -> favorites.remove(app.stableId)
+                    2 -> {
+                        enterWidgetEditMode(favoritesEditor)
+                        return@setItems
+                    }
+                    3 -> favorites.remove(app.stableId)
                 }
                 preferences.favorites = favorites
                 renderFavorites()
@@ -3086,10 +3142,29 @@ class MainActivity : Activity() {
     private fun enterWidgetEditMode(frame: EditableWidgetFrame) {
         activeWidgetEditor?.takeIf { it !== frame }?.exitEditMode(commit = true)
         frame.enterEditMode()
-        if (!runtimePreferences.getBoolean(WIDGET_EDITOR_HINT_SHOWN_KEY, false)) {
-            runtimePreferences.edit().putBoolean(WIDGET_EDITOR_HINT_SHOWN_KEY, true).apply()
-            Toast.makeText(this, "Drag to move · drag resize ↘ to size · tap done when finished", Toast.LENGTH_LONG).show()
+        val hintKey = if (frame === favoritesEditor) FAVORITES_EDITOR_HINT_SHOWN_KEY else WIDGET_EDITOR_HINT_SHOWN_KEY
+        if (!runtimePreferences.getBoolean(hintKey, false)) {
+            runtimePreferences.edit().putBoolean(hintKey, true).apply()
+            Toast.makeText(this, frame.editingHint(), Toast.LENGTH_LONG).show()
         }
+    }
+
+    private fun applyFavoritePosition() {
+        if (!::favoritesContainer.isInitialized || favoritesContainer.width <= 0 || favoritesContainer.height <= 0) return
+        if (favoritesEditor.visibility != View.VISIBLE) return
+        val params = favoritesEditor.layoutParams as? FrameLayout.LayoutParams ?: return
+        params.width = dp(270).coerceAtMost(favoritesContainer.width)
+        params.height = dp((favoritesView.childCount.coerceAtLeast(1)) * 48).coerceAtMost(favoritesContainer.height)
+        val position = preferences.favoritesPosition.sanitized()
+        params.leftMargin = WidgetGeometryPolicy.pixelsFromPermille(
+            position.xPermille,
+            (favoritesContainer.width - params.width).coerceAtLeast(0),
+        )
+        params.topMargin = WidgetGeometryPolicy.pixelsFromPermille(
+            position.yPermille,
+            (favoritesContainer.height - params.height).coerceAtLeast(0),
+        )
+        favoritesEditor.layoutParams = params
     }
 
     private fun confirmWidgetRemoval(label: String, remove: () -> Unit) {
@@ -3190,6 +3265,7 @@ class MainActivity : Activity() {
         const val CLOCK_GEOMETRY_KEY = "widget.builtin.clock.geometry"
         const val SCREEN_TIME_GEOMETRY_KEY = "widget.builtin.screen_time.geometry"
         const val WIDGET_EDITOR_HINT_SHOWN_KEY = "widget.editor.hint_shown"
+        const val FAVORITES_EDITOR_HINT_SHOWN_KEY = "favorites.editor.hint_shown"
         const val IME_SHOW_DELAY_MS = 120L
         const val DRAWER_TRANSITION_DISTANCE_DP = 28
         const val DRAWER_TRANSITION_OUT_MS = 130L

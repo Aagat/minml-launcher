@@ -28,6 +28,9 @@ class EditableWidgetFrame(context: Context) : FrameLayout(context) {
     private val removeControl = editorControl()
     private val resizeControl = editorControl()
     private var editing = false
+    private var itemName = "widget"
+    private var resizeEnabled = true
+    private var secondaryActionEnabled = true
     private var accentColor = 0xFFB7F36B.toInt()
     private var editorTextColor = Color.WHITE
     private var editorTypeface: Typeface = Typeface.MONOSPACE
@@ -53,7 +56,6 @@ class EditableWidgetFrame(context: Context) : FrameLayout(context) {
             gravity = Gravity.BOTTOM or Gravity.END
         })
 
-        moveSurface.contentDescription = "Move widget"
         moveSurface.id = R.id.widget_editor_move
         moveSurface.isFocusable = true
         moveSurface.setOnTouchListener { view, event ->
@@ -64,7 +66,6 @@ class EditableWidgetFrame(context: Context) : FrameLayout(context) {
         }
         resizeControl.text = context.getString(R.string.widget_editor_resize_label)
         resizeControl.id = R.id.widget_editor_resize
-        resizeControl.contentDescription = "Resize widget"
         resizeControl.setOnTouchListener { view, event ->
             handleResize(event).also { if (event.actionMasked == MotionEvent.ACTION_UP) view.performClick() }
         }
@@ -73,12 +74,16 @@ class EditableWidgetFrame(context: Context) : FrameLayout(context) {
         }
         doneControl.text = context.getString(R.string.widget_editor_done_label)
         doneControl.id = R.id.widget_editor_done
-        doneControl.contentDescription = "Finish arranging widget"
         doneControl.setOnClickListener { exitEditMode(commit = true) }
         removeControl.text = context.getString(R.string.widget_editor_remove_label)
         removeControl.id = R.id.widget_editor_remove
-        removeControl.contentDescription = "Remove widget"
         removeControl.setOnClickListener { onRemoveRequested?.invoke() }
+        configureEditorBehavior(
+            itemName = "widget",
+            allowResize = true,
+            secondaryActionLabel = context.getString(R.string.widget_editor_remove_label),
+            secondaryActionDescription = "Remove widget",
+        )
         setEditorVisible(false)
     }
 
@@ -89,6 +94,29 @@ class EditableWidgetFrame(context: Context) : FrameLayout(context) {
         updateEditorStyle()
     }
 
+    fun configureEditorBehavior(
+        itemName: String,
+        allowResize: Boolean,
+        secondaryActionLabel: CharSequence?,
+        secondaryActionDescription: String?,
+    ) {
+        this.itemName = itemName
+        resizeEnabled = allowResize
+        secondaryActionEnabled = secondaryActionLabel != null
+        moveSurface.contentDescription = "Move $itemName"
+        resizeControl.contentDescription = "Resize $itemName"
+        doneControl.contentDescription = "Finish arranging $itemName"
+        removeControl.text = secondaryActionLabel ?: ""
+        removeControl.contentDescription = secondaryActionDescription
+        setEditorVisible(editing)
+    }
+
+    fun editingHint(): String = if (resizeEnabled) {
+        "Drag to move · drag resize ↘ to size · tap done when finished"
+    } else {
+        "Drag to move · tap reset for the default position · tap done when finished"
+    }
+
     fun enterEditMode() {
         if (editing) return
         editing = true
@@ -96,7 +124,8 @@ class EditableWidgetFrame(context: Context) : FrameLayout(context) {
         setEditorVisible(true)
         moveSurface.requestFocus()
         onEditingChanged?.invoke(true)
-        announceForAccessibility("Widget editing. Drag to move, or use the resize handle.")
+        val resizeGuidance = if (resizeEnabled) ", or use the resize handle" else ""
+        announceForAccessibility("$itemName editing. Drag to move$resizeGuidance. Arrow keys also move it.")
     }
 
     fun exitEditMode(commit: Boolean) {
@@ -269,12 +298,12 @@ class EditableWidgetFrame(context: Context) : FrameLayout(context) {
     }
 
     private fun setEditorVisible(visible: Boolean) {
-        val visibility = if (visible) View.VISIBLE else View.GONE
-        moveSurface.visibility = visibility
-        border.visibility = visibility
-        doneControl.visibility = visibility
-        removeControl.visibility = visibility
-        resizeControl.visibility = visibility
+        val commonVisibility = if (visible) View.VISIBLE else View.GONE
+        moveSurface.visibility = commonVisibility
+        border.visibility = commonVisibility
+        doneControl.visibility = commonVisibility
+        removeControl.visibility = if (visible && secondaryActionEnabled) View.VISIBLE else View.GONE
+        resizeControl.visibility = if (visible && resizeEnabled) View.VISIBLE else View.GONE
         if (!visible) clearFocus()
     }
 
