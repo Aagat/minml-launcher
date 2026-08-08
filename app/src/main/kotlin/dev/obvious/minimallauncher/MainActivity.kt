@@ -1320,7 +1320,7 @@ class MainActivity : Activity() {
         val visibleFavorites = preferences.favorites
             .mapNotNull(byId::get)
             .map { AppPresentationPolicy.presented(it, aliases) }
-            .take(6)
+            .take(MAX_HOME_FAVORITES)
         visibleFavorites.forEachIndexed { index, app ->
             favoritesView.addView(Button(this).apply {
                 text = launcherText(app.label)
@@ -2690,13 +2690,38 @@ class MainActivity : Activity() {
     private fun showAppCustomizationActions(app: AppEntry) {
         val hidden = app.stableId in preferences.hiddenApps
         val renamed = app.stableId in preferences.appAliases
-        val labels = mutableListOf("rename", if (hidden) "show in app drawer" else "hide from app drawer")
+        val favorite = app.stableId in preferences.favorites
+        val labels = mutableListOf(
+            if (favorite) "remove from home screen" else "add to home screen",
+            "rename",
+            if (hidden) "show in app drawer" else "hide from app drawer",
+        )
         if (renamed) labels += "reset name"
         labels += "app details"
         AlertDialog.Builder(this)
             .setTitle(settingsAppLabel(app))
             .setItems(labels.toTypedArray()) { _, which ->
                 when (labels[which]) {
+                    "add to home screen" -> {
+                        val installedIds = allApps.mapTo(mutableSetOf()) { it.stableId }
+                        val visibleFavoriteCount = preferences.favorites.count { it in installedIds }
+                        if (visibleFavoriteCount >= MAX_HOME_FAVORITES) {
+                            Toast.makeText(
+                                this,
+                                "Home screen already has $MAX_HOME_FAVORITES favorite apps",
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        } else {
+                            preferences.favorites = preferences.favorites + app.stableId
+                            refreshAfterAppCustomization(reopenManager = true)
+                            Toast.makeText(this, "${settingsAppLabel(app)} added to Home screen", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    "remove from home screen" -> {
+                        preferences.favorites = preferences.favorites.filterNot { it == app.stableId }
+                        refreshAfterAppCustomization(reopenManager = true)
+                        Toast.makeText(this, "${settingsAppLabel(app)} removed from Home screen", Toast.LENGTH_SHORT).show()
+                    }
                     "rename" -> showAppRenameEditor(app)
                     "show in app drawer" -> {
                         preferences.setAppHidden(app.stableId, false)
@@ -3264,6 +3289,7 @@ class MainActivity : Activity() {
         const val REQUEST_PICK_WIDGET = 1001
         const val REQUEST_CONFIGURE_WIDGET = 1002
         const val REQUEST_COARSE_LOCATION = 1003
+        const val MAX_HOME_FAVORITES = 6
         const val ACTION_OPEN_APPS = 0x01020001
         const val STATE_DRAWER_OPEN = "drawer.open"
         const val STATE_FILTER = "drawer.filter"

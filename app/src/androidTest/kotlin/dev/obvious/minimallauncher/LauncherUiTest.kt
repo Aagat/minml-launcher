@@ -240,6 +240,24 @@ class LauncherUiTest {
         waitForDescription("minml launcher Home")
     }
 
+    @Test fun drawerLongPressCanAddAppToHomeScreen() {
+        setPreferences { favorites = listOf("unavailable:favorite") }
+        openDrawer()
+
+        waitForDescription("Open Clock").visibleCenter.let { center ->
+            device.swipe(center.x, center.y, center.x, center.y, 160)
+        }
+        waitForText("add to home screen").click()
+
+        scenario.onActivity { activity ->
+            val favorites = preferences(activity).favorites
+            assertEquals(2, favorites.size)
+            assertTrue(favorites.any { it != "unavailable:favorite" })
+        }
+        device.pressBack()
+        waitForDescription("Open Clock")
+    }
+
     @Test fun rotationKeepsDrawerUsable() {
         openDrawer()
         device.setOrientationLeft()
