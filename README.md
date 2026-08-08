@@ -75,6 +75,24 @@ The unsigned APK is written to
 `app/build/outputs/apk/release/app-release-unsigned.apk`. Sign public releases
 with a private, durable release key; no signing key is stored in this repository.
 
+## Code organization
+
+`MainActivity` is the application composition root. Supporting code is grouped
+by launcher feature under `app/src/main/kotlin/dev/obvious/minimallauncher/`:
+
+- `appearance/` owns colors, contrast, typography, and color-picker behavior.
+- `catalog/` discovers, identifies, caches, and searches launchable apps.
+- `drawer/` owns filtering, presentation, surfaces, and scroll indicators.
+- `gesture/` translates touch input into launcher gesture decisions.
+- `home/` owns clock, screen-time, widget editing, and placement behavior.
+- `preferences/` persists launcher configuration; feature value types remain in
+  their owning feature packages.
+- `settings/` describes settings navigation and information architecture.
+- `weather/` resolves locations, caching, units, and weather retrieval.
+
+Unit tests mirror the same package structure so behavior and its verification
+stay together.
+
 ## Automated releases
 
 Every push to `main` runs the build, lint, and unit-test suite before publishing
