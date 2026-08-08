@@ -4,6 +4,7 @@ import android.app.WallpaperManager
 import android.app.role.RoleManager
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.Rect
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.os.SystemClock
@@ -272,12 +273,66 @@ class LauncherUiTest {
         assertTrue(abs(restoredBounds.height() - arrangedBounds.height()) <= 4)
     }
 
+    @Test fun favoritesBlockCanBeMovedRestoredAndReset() {
+        assertTrue(eventually { viewBounds(R.id.home_favorites)?.height()?.let { it > 0 } == true })
+        val originalBounds = requireNotNull(viewBounds(R.id.home_favorites))
+
+        openSettingsCategory("Home screen")
+        waitForText("Favorite position").click()
+        val moveSurface = waitForResource("widget_editor_move")
+        assertTrue(device.findObject(By.res(PACKAGE_NAME, "widget_editor_resize")) == null)
+        waitForText("reset")
+        moveSurface.visibleCenter.let { center ->
+            device.swipe(center.x, center.y, center.x - 180, center.y - 240, 24)
+        }
+        val arrangedBounds = requireNotNull(viewBounds(R.id.home_favorites))
+        assertTrue(arrangedBounds.left < originalBounds.left - 100)
+        assertTrue(arrangedBounds.top < originalBounds.top - 100)
+        waitForResource("widget_editor_done").click()
+
+        scenario.recreate()
+        waitForPackage()
+        assertTrue(eventually {
+            viewBounds(R.id.home_favorites)?.let { restored ->
+                abs(restored.left - arrangedBounds.left) <= 4 && abs(restored.top - arrangedBounds.top) <= 4
+            } == true
+        })
+
+        device.setOrientationLeft()
+        assertTrue(eventually { device.displayWidth > device.displayHeight })
+        val landscapeBounds = requireNotNull(viewBounds(R.id.home_favorites))
+        assertTrue(landscapeBounds.left >= 0)
+        assertTrue(landscapeBounds.top >= 0)
+        assertTrue(landscapeBounds.right <= device.displayWidth)
+        assertTrue(landscapeBounds.bottom <= device.displayHeight)
+        device.setOrientationNatural()
+        assertTrue(eventually { device.displayHeight > device.displayWidth })
+        assertTrue(eventually {
+            viewBounds(R.id.home_favorites)?.let { restored ->
+                abs(restored.left - arrangedBounds.left) <= 4 && abs(restored.top - arrangedBounds.top) <= 4
+            } == true
+        })
+
+        openSettingsCategory("Home screen")
+        waitForText("Favorite position").click()
+        waitForText("reset").click()
+        waitForResource("widget_editor_done").click()
+        assertTrue(eventually {
+            viewBounds(R.id.home_favorites)?.let { reset ->
+                abs(reset.left - originalBounds.left) <= 4 && abs(reset.top - originalBounds.top) <= 4
+            } == true
+        })
+        scenario.onActivity { activity ->
+            assertEquals(HomeElementPosition.DEFAULT, preferences(activity).favoritesPosition)
+        }
+    }
+
     @Test fun screenTimeWidgetCanBeEnabledAndHidden() {
         openSettingsCategory("Home screen")
         waitForText("Show screen time").click()
         waitForText("1. Allow restricted settings")
         waitForText("2. Permit usage access")
-        assertFalse(waitForDescriptionContains("Detailed usage").isEnabled)
+        assertFalse(scrollToDescriptionContains("Detailed usage").isEnabled)
         closeSettingsCategoryAndRoot()
 
         waitForResource("home_screen_time").click()
@@ -289,7 +344,7 @@ class LauncherUiTest {
         scenario.recreate()
         waitForPackage()
         openSettingsCategory("Home screen")
-        val detailedUsage = waitForDescriptionContains("Detailed usage")
+        val detailedUsage = scrollToDescriptionContains("Detailed usage")
         assertTrue(detailedUsage.isEnabled)
         detailedUsage.click()
         closeSettingsCategoryAndRoot()
@@ -397,6 +452,17 @@ class LauncherUiTest {
         SharedPreferenceBackend(activity.getSharedPreferences(USER_PREFERENCES, 0)),
     )
 
+    private fun viewBounds(id: Int): Rect? {
+        var bounds: Rect? = null
+        scenario.onActivity { activity ->
+            val view = activity.findViewById<View>(id) ?: return@onActivity
+            val location = IntArray(2)
+            view.getLocationOnScreen(location)
+            bounds = Rect(location[0], location[1], location[0] + view.width, location[1] + view.height)
+        }
+        return bounds
+    }
+
     private fun waitForPackage() {
         assertTrue(device.wait(Until.hasObject(By.pkg(PACKAGE_NAME)), TIMEOUT_MS))
         device.waitForIdle()
@@ -415,6 +481,21 @@ class LauncherUiTest {
     private fun waitForDescriptionContains(description: String): UiObject2 =
         device.wait(Until.findObject(By.descContains(description)), TIMEOUT_MS)
             ?: throw AssertionError("Timed out waiting for description containing: $description")
+
+    private fun scrollToDescriptionContains(description: String): UiObject2 {
+        repeat(5) {
+            device.findObject(By.descContains(description))?.let { return it }
+            device.swipe(
+                device.displayWidth / 2,
+                device.displayHeight - 240,
+                device.displayWidth / 2,
+                device.displayHeight / 3,
+                24,
+            )
+            device.waitForIdle()
+        }
+        return waitForDescriptionContains(description)
+    }
 
     private fun waitForResource(name: String): UiObject2 =
         device.wait(Until.findObject(By.res(PACKAGE_NAME, name)), TIMEOUT_MS)
