@@ -62,6 +62,10 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
         get() = PreferenceCodec.decode(backend.getString(KEY_FAVORITES))
         set(value) = backend.putString(KEY_FAVORITES, PreferenceCodec.encode(value.distinct()))
 
+    var favoritesPosition: HomeElementPosition
+        get() = HomeElementPositionCodec.decode(backend.getString(KEY_FAVORITES_POSITION))
+        set(value) = backend.putString(KEY_FAVORITES_POSITION, HomeElementPositionCodec.encode(value))
+
     var appearance: Appearance
         get() = runCatching { Appearance.valueOf(backend.getString(KEY_APPEARANCE, Appearance.AUTO.name)) }
             .getOrDefault(Appearance.AUTO)
@@ -275,6 +279,7 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
 
     private companion object {
         const val KEY_FAVORITES = "favorites"
+        const val KEY_FAVORITES_POSITION = "home.favorites_position"
         const val KEY_APPEARANCE = "appearance"
         const val KEY_WEATHER_ENABLED = "weather.enabled"
         const val KEY_WEATHER_LATITUDE = "weather.latitude"

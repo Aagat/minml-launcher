@@ -17,6 +17,7 @@ class LauncherPreferencesTest {
         val backend = MapBackend()
         LauncherPreferences(backend).apply {
             favorites = listOf("profile:pkg/A", "unicode:应用", "profile:pkg/A")
+            favoritesPosition = HomeElementPosition(240, 680)
             appearance = Appearance.SOLID
             weatherEnabled = true
             weatherLatitude = "41.3874"
@@ -55,6 +56,7 @@ class LauncherPreferencesTest {
 
         val restored = LauncherPreferences(backend)
         assertEquals(listOf("profile:pkg/A", "unicode:应用"), restored.favorites)
+        assertEquals(HomeElementPosition(240, 680), restored.favoritesPosition)
         assertEquals(Appearance.SOLID, restored.appearance)
         assertTrue(restored.weatherEnabled)
         assertEquals("41.3874", restored.weatherLatitude)
@@ -134,6 +136,7 @@ class LauncherPreferencesTest {
         assertEquals(20, preferences.searchLeftMarginDp)
         assertEquals(WeatherTemperatureUnit.SYSTEM, preferences.weatherTemperatureUnit)
         assertEquals(ClockFormat.SYSTEM, preferences.clockFormat)
+        assertEquals(HomeElementPosition.DEFAULT, preferences.favoritesPosition)
         assertFalse(preferences.hideStatusBar)
         preferences.fontScalePercent = 300
         preferences.appListTopMarginDp = 300
