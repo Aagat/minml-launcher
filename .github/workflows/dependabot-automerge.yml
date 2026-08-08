@@ -26,10 +26,39 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Classify same-major pinned Action refresh
+        id: pinned-action
+        if: >-
+          steps.metadata.outputs.package-ecosystem == 'github_actions' &&
+          steps.metadata.outputs.update-type == 'version-update:semver-major'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          patch="$(gh pr diff "$PR_URL")"
+          changed_lines="$(printf '%s\n' "$patch" | sed -n '/^[+-][^-+]/p')"
+          action_lines="$(printf '%s\n' "$changed_lines" | sed -n '/^[+-][[:space:]]*uses:/p')"
+
+          safe=false
+          if [[ -n "$changed_lines" && "$changed_lines" == "$action_lines" ]]; then
+            removed="$(printf '%s\n' "$action_lines" | sed -n 's/^-[[:space:]]*uses:[[:space:]]*\([^@ ]*\)@[0-9a-f]\{40\}[[:space:]]*#[[:space:]]*\(v[0-9][0-9]*\)$/\1 \2/p' | sort)"
+            added="$(printf '%s\n' "$action_lines" | sed -n 's/^+[[:space:]]*uses:[[:space:]]*\([^@ ]*\)@[0-9a-f]\{40\}[[:space:]]*#[[:space:]]*\(v[0-9][0-9]*\)$/\1 \2/p' | sort)"
+            removed_count="$(printf '%s\n' "$action_lines" | sed -n '/^-/p' | wc -l)"
+            added_count="$(printf '%s\n' "$action_lines" | sed -n '/^+/p' | wc -l)"
+            if [[ -n "$removed" && "$removed" == "$added" && "$removed_count" == "$added_count" ]]; then
+              safe=true
+            fi
+          fi
+
+          echo "safe=$safe" >> "$GITHUB_OUTPUT"
+
       - name: Enable auto-merge for patch and minor updates
         if: >-
           steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
-          steps.metadata.outputs.update-type == 'version-update:semver-minor'
+          steps.metadata.outputs.update-type == 'version-update:semver-minor' ||
+          steps.pinned-action.outputs.safe == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
