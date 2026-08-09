@@ -60,8 +60,9 @@ Assert-Exists -PathToCheck $SdkManager -Description 'sdkmanager'
 
 Write-Step "Writing local.properties"
 $LocalPropertiesPath = Join-Path $RepoRoot 'local.properties'
+$SdkPathForGradle = $SdkRoot -replace '\\', '/'
 @"
-sdk.dir=$SdkRoot
+sdk.dir=$SdkPathForGradle
 "@ | Set-Content -Encoding ASCII -LiteralPath $LocalPropertiesPath
 
 Write-Step "Accepting Android SDK licenses"
@@ -75,10 +76,13 @@ $env:Path = "$JdkHome\bin;$SdkRoot\platform-tools;$LatestCmdlineTools\bin;$env:P
 Write-Step "Installing required Android SDK packages"
 & $SdkManager --sdk_root="$SdkRoot" `
     'platform-tools' `
-    'platforms;android-37' `
+    'platforms;android-37.0' `
     'build-tools;36.0.0'
 
 Write-Host ""
 Write-Host "Setup complete."
 Write-Host "The project is configured to use the local Android SDK at: $SdkRoot"
 Write-Host "The repo-local SDK pointer is: $LocalPropertiesPath"
+
+
+

@@ -14,4 +14,7 @@ object AppPresentationPolicy {
         val alias = aliases[app.stableId]?.trim().orEmpty()
         return if (alias.isEmpty() || alias == app.label) app else app.copy(label = alias)
     }
+
+    fun drawerLabel(app: AppEntry, showStockProfileMarker: Boolean): String =
+        app.label + if (showStockProfileMarker && app.isStockApp && app.isWorkProfile) " (w)" else ""
 }

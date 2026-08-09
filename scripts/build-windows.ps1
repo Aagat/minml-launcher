@@ -43,6 +43,11 @@ Write-Step "Verifying the local toolchain"
 Write-Step "Building the project"
 Set-Location $RepoRoot
 & .\gradlew.bat clean assembleDebug lintDebug testDebugUnitTest
+if ($LASTEXITCODE -ne 0) {
+    throw "Gradle build failed with exit code $LASTEXITCODE."
+}
 
 Write-Host ""
 Write-Host "Build complete."
+
+

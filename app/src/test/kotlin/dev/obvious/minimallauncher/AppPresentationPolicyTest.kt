@@ -25,4 +25,13 @@ class AppPresentationPolicyTest {
         assertNotSame(personal, presented)
         assertSame(personal, AppPresentationPolicy.presented(personal, emptyMap()))
     }
+
+    @Test fun `stock drawer marks work profile apps without marking personal apps`() {
+        val personalStock = personal.copy(isStockApp = true)
+        val workStock = work.copy(isStockApp = true)
+
+        assertEquals("Camera", AppPresentationPolicy.drawerLabel(personalStock, true))
+        assertEquals("Camera (w)", AppPresentationPolicy.drawerLabel(workStock, true))
+        assertEquals("Camera", AppPresentationPolicy.drawerLabel(workStock, false))
+    }
 }

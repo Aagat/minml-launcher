@@ -3260,8 +3260,12 @@ class MainActivity : Activity() {
                 setBackgroundColor(Color.TRANSPARENT)
             }
             val app = getItem(position)
-            view.text = launcherText(app.label)
-            view.contentDescription = "Open ${app.label}${if (app.isWorkProfile) ", work profile" else ""}"
+            val label = AppPresentationPolicy.drawerLabel(
+                app,
+                showStockProfileMarker = currentFilter.builtIn == DrawerFilter.STOCK,
+            )
+            view.text = launcherText(label)
+            view.contentDescription = "Open $label${if (app.isWorkProfile) ", work profile" else ""}"
             return view
         }
     }
