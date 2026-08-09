@@ -6,13 +6,19 @@ enum class DrawerFilter {
     ALL,
     DAILY,
     WORK,
-    MEDIA;
+    MEDIA,
+    STOCK;
 
-    val displayName: String get() = name.lowercase().replaceFirstChar { it.uppercase() }
+    val displayName: String get() = when (this) {
+        ALL -> "Personal"
+        STOCK -> "Stock"
+        else -> name.lowercase().replaceFirstChar { it.uppercase() }
+    }
 
     fun cycle(step: Int): DrawerFilter {
-        val filters = entries
-        return filters[(ordinal + step).mod(filters.size)]
+        val filters = entries.filter { it != STOCK }
+        val current = filters.indexOf(this).takeIf { it >= 0 } ?: 0
+        return filters[(current + step).mod(filters.size)]
     }
 }
 
@@ -30,8 +36,10 @@ data class FilterSpec(
 }
 
 object FilterCatalog {
-    fun available(customFilters: List<CustomFilter>): List<FilterSpec> =
-        DrawerFilter.entries.map(FilterSpec::builtIn) + customFilters.map(FilterSpec::custom)
+    fun available(customFilters: List<CustomFilter>, separateStockApps: Boolean = false): List<FilterSpec> =
+        DrawerFilter.entries
+            .filter { it != DrawerFilter.STOCK || separateStockApps }
+            .map(FilterSpec::builtIn) + customFilters.map(FilterSpec::custom)
 
     fun cycle(filters: List<FilterSpec>, currentId: String, step: Int): FilterSpec {
         require(filters.isNotEmpty())
@@ -53,9 +61,11 @@ object FilterEngine {
         apps: List<AppEntry>,
         filter: FilterSpec,
         membership: Set<String>,
+        separateStockApps: Boolean = false,
     ): List<AppEntry> = when (filter.builtIn) {
-        DrawerFilter.ALL -> apps.filterNot { it.isWorkProfile }
-        DrawerFilter.WORK -> apps.filter { it.isWorkProfile }
+        DrawerFilter.ALL -> apps.filter { !it.isWorkProfile && (!separateStockApps || !it.isStockApp) }
+        DrawerFilter.WORK -> apps.filter { it.isWorkProfile && (!separateStockApps || !it.isStockApp) }
+        DrawerFilter.STOCK -> apps.filter { it.isStockApp }
         DrawerFilter.DAILY, DrawerFilter.MEDIA, null -> {
             val ids = membership
             apps.filter { !it.isWorkProfile && it.stableId in ids }
