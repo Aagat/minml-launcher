@@ -1,5 +1,13 @@
 package dev.obvious.minimallauncher
 
+import dev.obvious.minimallauncher.appearance.Appearance
+import dev.obvious.minimallauncher.appearance.LauncherColorPalette
+import dev.obvious.minimallauncher.appearance.LauncherTextTransform
+import dev.obvious.minimallauncher.drawer.DrawerSurfaceMode
+import dev.obvious.minimallauncher.drawer.DrawerSurfacePolicy
+import dev.obvious.minimallauncher.home.HomeElementPosition
+import dev.obvious.minimallauncher.preferences.LauncherPreferences
+import dev.obvious.minimallauncher.preferences.SharedPreferenceBackend
 import android.app.WallpaperManager
 import android.app.role.RoleManager
 import android.content.Intent
@@ -230,6 +238,24 @@ class LauncherUiTest {
         assertNotNull(device.findObject(By.res(PACKAGE_NAME, "drawer_search")))
         device.swipe(device.displayWidth / 2, 180, device.displayWidth / 2, 1_100, 6)
         waitForDescription("minml launcher Home")
+    }
+
+    @Test fun drawerLongPressCanAddAppToHomeScreen() {
+        setPreferences { favorites = listOf("unavailable:favorite") }
+        openDrawer()
+
+        waitForDescription("Open Clock").visibleCenter.let { center ->
+            device.swipe(center.x, center.y, center.x, center.y, 160)
+        }
+        waitForText("add to home screen").click()
+
+        scenario.onActivity { activity ->
+            val favorites = preferences(activity).favorites
+            assertEquals(2, favorites.size)
+            assertTrue(favorites.any { it != "unavailable:favorite" })
+        }
+        device.pressBack()
+        waitForDescription("Open Clock")
     }
 
     @Test fun rotationKeepsDrawerUsable() {
