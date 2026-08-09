@@ -18,4 +18,9 @@ class CatalogCacheCodecTest {
         val mixed = PreferenceCodec.encode(PreferenceCodec.decode(valid) + "3:bad")
         assertEquals(listOf("ok"), CatalogCacheCodec.decode(mixed).map { it.stableId })
     }
+
+    @Test fun `catalog cache preserves stock app classification`() {
+        val stockApp = testApp("stock", "Camera", stock = true)
+        assertEquals(listOf(stockApp), CatalogCacheCodec.decode(CatalogCacheCodec.encode(listOf(stockApp))))
+    }
 }

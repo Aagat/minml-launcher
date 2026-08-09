@@ -598,6 +598,17 @@ class MainActivity : Activity() {
             applyDrawerPresentation()
             renderSettingsPage()
         }
+        addSettingsRow(
+            body,
+            "Separate stock apps",
+            "Show preinstalled apps in their own Stock section",
+            onOff(preferences.separateStockApps),
+        ) {
+            preferences.separateStockApps = !preferences.separateStockApps
+            rebuildFilterButtons()
+            renderDrawer()
+            renderSettingsPage()
+        }
 
         addSettingsSection(body, "search")
         addSettingsRow(
@@ -1297,10 +1308,11 @@ class MainActivity : Activity() {
         renderFavorites()
     }
 
-    private fun availableFilters(): List<FilterSpec> = FilterCatalog.available(preferences.customFilters)
+    private fun availableFilters(): List<FilterSpec> =
+        FilterCatalog.available(preferences.customFilters, preferences.separateStockApps)
 
     private fun membership(filter: FilterSpec): Set<String> = when (val builtIn = filter.builtIn) {
-        DrawerFilter.ALL, DrawerFilter.WORK -> emptySet()
+        DrawerFilter.ALL, DrawerFilter.WORK, DrawerFilter.STOCK -> emptySet()
         DrawerFilter.DAILY, DrawerFilter.MEDIA -> preferences.membership(builtIn)
         null -> preferences.customMembership(filter.id)
     }
@@ -1347,7 +1359,12 @@ class MainActivity : Activity() {
     private fun renderDrawer() {
         if (!::searchInput.isInitialized) return
         val catalog = AppPresentationPolicy.visibleCatalog(allApps, preferences.hiddenApps, preferences.appAliases)
-        val scoped = FilterEngine.apply(catalog, currentFilter, membership(currentFilter))
+        val scoped = FilterEngine.apply(
+            catalog,
+            currentFilter,
+            membership(currentFilter),
+            preferences.separateStockApps,
+        )
         visibleApps = AppSearch.rank(scoped, searchInput.text?.toString().orEmpty())
         val header = DrawerHeaderPolicy.content(
             launcherText(currentFilter.displayName),

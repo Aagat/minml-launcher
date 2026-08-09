@@ -218,6 +218,10 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
         get() = backend.getBoolean(KEY_SHOW_FILTER_BAR, true)
         set(value) = backend.putBoolean(KEY_SHOW_FILTER_BAR, value)
 
+    var separateStockApps: Boolean
+        get() = backend.getBoolean(KEY_SEPARATE_STOCK_APPS)
+        set(value) = backend.putBoolean(KEY_SEPARATE_STOCK_APPS, value)
+
     var showDrawerGradient: Boolean
         get() = backend.getBoolean(KEY_SHOW_DRAWER_GRADIENT, true)
         set(value) = backend.putBoolean(KEY_SHOW_DRAWER_GRADIENT, value)
@@ -308,6 +312,7 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
         const val KEY_SHOW_DETAILED_USAGE = "home.show_detailed_usage"
         const val KEY_AUTO_SHOW_KEYBOARD = "customization.auto_show_keyboard"
         const val KEY_SHOW_FILTER_BAR = "customization.show_filter_bar"
+        const val KEY_SEPARATE_STOCK_APPS = "apps.separate_stock_apps"
         const val KEY_SHOW_DRAWER_GRADIENT = "customization.show_drawer_gradient"
         const val KEY_SHOW_SEARCH_UNDERLINE = "customization.show_search_underline"
         const val KEY_APP_LIST_TOP_MARGIN = "customization.app_list_top_margin"

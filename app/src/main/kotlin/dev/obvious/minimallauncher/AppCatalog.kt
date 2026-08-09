@@ -56,6 +56,7 @@ class AppCatalog(
                         userSerial = serial,
                         isWorkProfile = user != personal,
                         isMedia = applicationInfo.category in MEDIA_CATEGORIES,
+                        isStockApp = applicationInfo.flags and ApplicationInfo.FLAG_SYSTEM != 0,
                     )
                 }
             }.distinctBy { it.stableId }

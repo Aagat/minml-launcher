@@ -8,4 +8,6 @@ data class AppEntry(
     val userSerial: Long,
     val isWorkProfile: Boolean,
     val isMedia: Boolean,
+    /** True for an app supplied with the device image (including updated system apps). */
+    val isStockApp: Boolean = false,
 )

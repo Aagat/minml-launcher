@@ -45,6 +45,7 @@ class LauncherPreferencesTest {
             showDetailedUsage = true
             autoShowKeyboard = false
             showFilterBar = false
+            separateStockApps = true
             showDrawerGradient = false
             showSearchUnderline = false
             appListTopMarginDp = 36
@@ -83,6 +84,7 @@ class LauncherPreferencesTest {
         assertTrue(restored.showDetailedUsage)
         assertFalse(restored.autoShowKeyboard)
         assertFalse(restored.showFilterBar)
+        assertTrue(restored.separateStockApps)
         assertFalse(restored.showDrawerGradient)
         assertFalse(restored.showSearchUnderline)
         assertEquals(36, restored.appListTopMarginDp)
