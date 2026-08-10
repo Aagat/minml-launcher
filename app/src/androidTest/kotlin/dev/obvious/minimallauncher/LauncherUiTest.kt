@@ -3,6 +3,7 @@ package dev.obvious.minimallauncher
 import dev.obvious.minimallauncher.appearance.Appearance
 import dev.obvious.minimallauncher.appearance.LauncherColorPalette
 import dev.obvious.minimallauncher.appearance.LauncherTextTransform
+import dev.obvious.minimallauncher.catalog.AppEntry
 import dev.obvious.minimallauncher.drawer.DrawerSurfaceMode
 import dev.obvious.minimallauncher.drawer.DrawerSurfacePolicy
 import dev.obvious.minimallauncher.home.HomeElementPosition
@@ -18,6 +19,7 @@ import android.graphics.drawable.GradientDrawable
 import android.os.SystemClock
 import android.view.View
 import android.view.WindowInsets
+import android.widget.ListView
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -238,6 +240,38 @@ class LauncherUiTest {
         assertNotNull(device.findObject(By.res(PACKAGE_NAME, "drawer_search")))
         device.swipe(device.displayWidth / 2, 180, device.displayWidth / 2, 1_100, 6)
         waitForDescription("minml launcher Home")
+    }
+
+    @Test fun drawerCanReverseAppsWhileKeyboardIsVisible() {
+        setPreferences { autoShowKeyboard = true }
+        openDrawer()
+        assertTrue(eventually { isImeVisible() })
+        assertTrue(eventually { drawerStableIds().size > 1 })
+        val rankedNormally = drawerStableIds()
+
+        device.pressBack()
+        assertTrue(eventually { !isImeVisible() })
+        device.pressBack()
+        waitForDescription("minml launcher Home")
+
+        openSettingsCategory("App drawer")
+        scrollToDescriptionContains("Place the most relevant app closest to the keyboard").click()
+        scenario.onActivity { activity -> assertTrue(preferences(activity).reverseAppListWithKeyboard) }
+        closeSettingsCategoryAndRoot()
+
+        openDrawer()
+        assertTrue(eventually { isImeVisible() })
+        assertTrue("drawer order did not reverse", eventually { drawerStableIds() == rankedNormally.asReversed() })
+        assertTrue(
+            "most relevant app was not anchored at the bottom: ${drawerVisiblePositions()} of ${rankedNormally.size}",
+            eventually { drawerLastVisiblePosition() == rankedNormally.lastIndex },
+        )
+
+        device.pressBack()
+        assertTrue(eventually { !isImeVisible() })
+        assertTrue(eventually {
+            drawerStableIds() == rankedNormally && drawerFirstVisiblePosition() == 0
+        })
     }
 
     @Test fun drawerLongPressCanAddAppToHomeScreen() {
@@ -488,6 +522,34 @@ class LauncherUiTest {
         }
         return bounds
     }
+
+    private fun drawerStableIds(): List<String> {
+        var ids = emptyList<String>()
+        scenario.onActivity { activity ->
+            val adapter = activity.findViewById<ListView>(R.id.drawer_app_list).adapter
+            ids = (0 until adapter.count).map { (adapter.getItem(it) as AppEntry).stableId }
+        }
+        return ids
+    }
+
+    private fun drawerFirstVisiblePosition(): Int {
+        var position = -1
+        scenario.onActivity { activity ->
+            position = activity.findViewById<ListView>(R.id.drawer_app_list).firstVisiblePosition
+        }
+        return position
+    }
+
+    private fun drawerLastVisiblePosition(): Int {
+        var position = -1
+        scenario.onActivity { activity ->
+            position = activity.findViewById<ListView>(R.id.drawer_app_list).lastVisiblePosition
+        }
+        return position
+    }
+
+    private fun drawerVisiblePositions(): String =
+        "${drawerFirstVisiblePosition()}..${drawerLastVisiblePosition()}"
 
     private fun waitForPackage() {
         assertTrue(device.wait(Until.hasObject(By.pkg(PACKAGE_NAME)), TIMEOUT_MS))

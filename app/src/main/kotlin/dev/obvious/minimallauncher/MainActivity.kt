@@ -1397,13 +1397,16 @@ class MainActivity : Activity() {
             } else null
             button.contentDescription = "${spec.displayName} apps filter${if (active) ", selected" else ""}"
         }
-        if (resetPosition) appList.post(::positionAppListForOrder)
+        if (resetPosition) appList.postOnAnimation(::positionAppListForOrder)
         appList.post { updateScrollThumb(adapter.count) }
     }
 
     private fun positionAppListForOrder() {
-        val position = if (preferences.reverseAppListWithKeyboard && imeVisible) visibleApps.lastIndex else 0
-        appList.setSelection(position.coerceAtLeast(0))
+        if (preferences.reverseAppListWithKeyboard && imeVisible) {
+            appList.smoothScrollToPosition(visibleApps.lastIndex.coerceAtLeast(0))
+        } else {
+            appList.smoothScrollToPosition(0)
+        }
     }
 
     private fun setFilter(filter: FilterSpec, transitionDirection: Int = 0) {
