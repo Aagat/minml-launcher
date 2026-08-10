@@ -55,6 +55,7 @@ class LauncherPreferencesTest {
             showScreenTime = true
             showDetailedUsage = true
             autoShowKeyboard = false
+            reverseAppListWithKeyboard = true
             showFilterBar = false
             showDrawerGradient = false
             showSearchUnderline = false
@@ -93,6 +94,7 @@ class LauncherPreferencesTest {
         assertTrue(restored.showScreenTime)
         assertTrue(restored.showDetailedUsage)
         assertFalse(restored.autoShowKeyboard)
+        assertTrue(restored.reverseAppListWithKeyboard)
         assertFalse(restored.showFilterBar)
         assertFalse(restored.showDrawerGradient)
         assertFalse(restored.showSearchUnderline)
@@ -139,6 +141,7 @@ class LauncherPreferencesTest {
         assertFalse(preferences.showScreenTime)
         assertFalse(preferences.showDetailedUsage)
         assertTrue(preferences.autoShowKeyboard)
+        assertFalse(preferences.reverseAppListWithKeyboard)
         assertTrue(preferences.showFilterBar)
         assertTrue(preferences.showDrawerGradient)
         assertTrue(preferences.showSearchUnderline)

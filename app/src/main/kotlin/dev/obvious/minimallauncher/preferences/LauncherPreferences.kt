@@ -207,6 +207,10 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
         get() = backend.getBoolean(KEY_AUTO_SHOW_KEYBOARD, true)
         set(value) = backend.putBoolean(KEY_AUTO_SHOW_KEYBOARD, value)
 
+    var reverseAppListWithKeyboard: Boolean
+        get() = backend.getBoolean(KEY_REVERSE_APP_LIST_WITH_KEYBOARD)
+        set(value) = backend.putBoolean(KEY_REVERSE_APP_LIST_WITH_KEYBOARD, value)
+
     var showFilterBar: Boolean
         get() = backend.getBoolean(KEY_SHOW_FILTER_BAR, true)
         set(value) = backend.putBoolean(KEY_SHOW_FILTER_BAR, value)
@@ -300,6 +304,7 @@ class LauncherPreferences(private val backend: PreferenceBackend) {
         const val KEY_SHOW_SCREEN_TIME = "home.show_screen_time"
         const val KEY_SHOW_DETAILED_USAGE = "home.show_detailed_usage"
         const val KEY_AUTO_SHOW_KEYBOARD = "customization.auto_show_keyboard"
+        const val KEY_REVERSE_APP_LIST_WITH_KEYBOARD = "customization.reverse_app_list_with_keyboard"
         const val KEY_SHOW_FILTER_BAR = "customization.show_filter_bar"
         const val KEY_SHOW_DRAWER_GRADIENT = "customization.show_drawer_gradient"
         const val KEY_SHOW_SEARCH_UNDERLINE = "customization.show_search_underline"

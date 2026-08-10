@@ -269,6 +269,7 @@ class MainActivity : Activity() {
         settingsLayer.visibility = View.GONE
 
         root.setOnApplyWindowInsetsListener { _, insets ->
+            val wasImeVisible = imeVisible
             val bars = if (android.os.Build.VERSION.SDK_INT >= 30) {
                 imeVisible = insets.isVisible(WindowInsets.Type.ime())
                 insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
@@ -291,6 +292,9 @@ class MainActivity : Activity() {
             }
             drawer.setPadding(bars.left, bars.top, bars.right, drawerBottom)
             drawer.post(::positionDrawerChildren)
+            if (imeVisible != wasImeVisible && preferences.reverseAppListWithKeyboard && drawerOpen) {
+                renderDrawer(resetPosition = true)
+            }
             insets
         }
     }
@@ -627,6 +631,15 @@ class MainActivity : Activity() {
         ) { showColorChooser(ColorSettingTarget.DRAWER_BACKGROUND) }
         addSettingsRow(body, "Open keyboard automatically", "Search remains focused for physical keyboards", onOff(preferences.autoShowKeyboard)) {
             preferences.autoShowKeyboard = !preferences.autoShowKeyboard
+            renderSettingsPage()
+        }
+        addSettingsRow(
+            body,
+            "Reverse list above keyboard",
+            "Place the most relevant app closest to the keyboard",
+            onOff(preferences.reverseAppListWithKeyboard),
+        ) {
+            preferences.reverseAppListWithKeyboard = !preferences.reverseAppListWithKeyboard
             renderSettingsPage()
         }
         addSettingsRow(body, "Accent underline", "Show the line beneath search", onOff(preferences.showSearchUnderline)) {
@@ -1090,15 +1103,18 @@ class MainActivity : Activity() {
             addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                    renderDrawer()
-                    appList.setSelection(0)
+                    renderDrawer(resetPosition = true)
                 }
                 override fun afterTextChanged(s: Editable?) = Unit
             })
             setOnEditorActionListener { _, actionId, event ->
                 val enter = event?.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN
                 if (actionId == EditorInfo.IME_ACTION_GO || enter) {
-                    visibleApps.firstOrNull()?.let(::launchApp)
+                    DrawerListOrderPolicy.mostRelevant(
+                        visibleApps,
+                        preferences.reverseAppListWithKeyboard,
+                        imeVisible,
+                    )?.let(::launchApp)
                     true
                 } else false
             }
@@ -1352,11 +1368,15 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun renderDrawer() {
+    private fun renderDrawer(resetPosition: Boolean = false) {
         if (!::searchInput.isInitialized) return
         val catalog = AppPresentationPolicy.visibleCatalog(allApps, preferences.hiddenApps, preferences.appAliases)
         val scoped = FilterEngine.apply(catalog, currentFilter, membership(currentFilter))
-        visibleApps = AppSearch.rank(scoped, searchInput.text?.toString().orEmpty())
+        visibleApps = DrawerListOrderPolicy.order(
+            AppSearch.rank(scoped, searchInput.text?.toString().orEmpty()),
+            preferences.reverseAppListWithKeyboard,
+            imeVisible,
+        )
         val header = DrawerHeaderPolicy.content(
             launcherText(currentFilter.displayName),
             scoped.size,
@@ -1377,7 +1397,13 @@ class MainActivity : Activity() {
             } else null
             button.contentDescription = "${spec.displayName} apps filter${if (active) ", selected" else ""}"
         }
+        if (resetPosition) appList.post(::positionAppListForOrder)
         appList.post { updateScrollThumb(adapter.count) }
+    }
+
+    private fun positionAppListForOrder() {
+        val position = if (preferences.reverseAppListWithKeyboard && imeVisible) visibleApps.lastIndex else 0
+        appList.setSelection(position.coerceAtLeast(0))
     }
 
     private fun setFilter(filter: FilterSpec, transitionDirection: Int = 0) {
@@ -1392,8 +1418,7 @@ class MainActivity : Activity() {
 
     private fun applyFilter(filter: FilterSpec) {
         currentFilter = filter
-        appList.setSelection(0)
-        renderDrawer()
+        renderDrawer(resetPosition = true)
         filtersView.announceForAccessibility("${filter.displayName} filter")
     }
 
@@ -1509,8 +1534,7 @@ class MainActivity : Activity() {
             drawer.translationY = 0f
         }
         if (seed.isNotEmpty()) searchInput.setText(seed)
-        renderDrawer()
-        appList.setSelection(0)
+        renderDrawer(resetPosition = true)
         drawer.post {
             positionDrawerChildren()
             searchInput.requestFocus()
