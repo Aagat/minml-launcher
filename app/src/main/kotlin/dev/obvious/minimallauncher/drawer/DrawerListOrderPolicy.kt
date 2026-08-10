@@ -1,17 +1,15 @@
 package dev.obvious.minimallauncher.drawer
 
 object DrawerListOrderPolicy {
-    fun <T> order(
-        items: List<T>,
+    fun shouldReverse(
         reverseWithKeyboard: Boolean,
         keyboardVisible: Boolean,
         searchActive: Boolean,
-    ): List<T> = if (reverseWithKeyboard && keyboardVisible && searchActive) items.asReversed() else items
+        currentlyReversed: Boolean,
+    ): Boolean = reverseWithKeyboard && searchActive && (keyboardVisible || currentlyReversed)
 
-    fun <T> mostRelevant(
-        items: List<T>,
-        reverseWithKeyboard: Boolean,
-        keyboardVisible: Boolean,
-        searchActive: Boolean,
-    ): T? = if (reverseWithKeyboard && keyboardVisible && searchActive) items.lastOrNull() else items.firstOrNull()
+    fun <T> order(items: List<T>, reversed: Boolean): List<T> = if (reversed) items.asReversed() else items
+
+    fun <T> mostRelevant(items: List<T>, reversed: Boolean): T? =
+        if (reversed) items.lastOrNull() else items.firstOrNull()
 }

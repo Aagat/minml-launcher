@@ -120,6 +120,7 @@ class MainActivity : Activity() {
     private var currentFilter = FilterSpec.builtIn(DrawerFilter.ALL)
     private var drawerOpen = false
     private var imeVisible = false
+    private var searchResultsReversed = false
     private var pendingWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
     private var weatherRequestedAt = 0L
     private var locationRequestInFlight = false
@@ -1112,9 +1113,7 @@ class MainActivity : Activity() {
                 if (actionId == EditorInfo.IME_ACTION_GO || enter) {
                     DrawerListOrderPolicy.mostRelevant(
                         visibleApps,
-                        preferences.reverseAppListWithKeyboard,
-                        imeVisible,
-                        searchInput.text?.isNotBlank() == true,
+                        searchResultsReversed,
                     )?.let(::launchApp)
                     true
                 } else false
@@ -1374,12 +1373,13 @@ class MainActivity : Activity() {
         val catalog = AppPresentationPolicy.visibleCatalog(allApps, preferences.hiddenApps, preferences.appAliases)
         val scoped = FilterEngine.apply(catalog, currentFilter, membership(currentFilter))
         val query = searchInput.text?.toString().orEmpty()
-        visibleApps = DrawerListOrderPolicy.order(
-            AppSearch.rank(scoped, query),
+        searchResultsReversed = DrawerListOrderPolicy.shouldReverse(
             preferences.reverseAppListWithKeyboard,
             imeVisible,
             query.isNotBlank(),
+            searchResultsReversed,
         )
+        visibleApps = DrawerListOrderPolicy.order(AppSearch.rank(scoped, query), searchResultsReversed)
         val header = DrawerHeaderPolicy.content(
             launcherText(currentFilter.displayName),
             scoped.size,
@@ -1405,7 +1405,7 @@ class MainActivity : Activity() {
     }
 
     private fun positionAppListForOrder() {
-        if (preferences.reverseAppListWithKeyboard && imeVisible && searchInput.text?.isNotBlank() == true) {
+        if (searchResultsReversed) {
             appList.smoothScrollToPosition(visibleApps.lastIndex.coerceAtLeast(0))
         } else {
             appList.smoothScrollToPosition(0)

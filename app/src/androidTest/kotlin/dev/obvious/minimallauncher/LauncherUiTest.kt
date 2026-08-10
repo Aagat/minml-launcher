@@ -19,6 +19,7 @@ import android.graphics.drawable.GradientDrawable
 import android.os.SystemClock
 import android.view.View
 import android.view.WindowInsets
+import android.widget.EditText
 import android.widget.ListView
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -279,7 +280,13 @@ class LauncherUiTest {
         device.pressBack()
         assertTrue(eventually { !isImeVisible() })
         assertTrue(eventually {
-            drawerStableIds() == searchRankedNormally && drawerFirstVisiblePosition() == 0
+            drawerStableIds() == searchRankedNormally.asReversed() &&
+                drawerLastVisiblePosition() == searchRankedNormally.lastIndex
+        })
+
+        scenario.onActivity { activity -> activity.findViewById<EditText>(R.id.drawer_search).setText("") }
+        assertTrue(eventually {
+            drawerStableIds() == unfilteredNormally && drawerFirstVisiblePosition() == 0
         })
     }
 
