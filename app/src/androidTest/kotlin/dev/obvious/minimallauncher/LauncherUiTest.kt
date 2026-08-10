@@ -247,7 +247,10 @@ class LauncherUiTest {
         openDrawer()
         assertTrue(eventually { isImeVisible() })
         assertTrue(eventually { drawerStableIds().size > 1 })
-        val rankedNormally = drawerStableIds()
+        val unfilteredNormally = drawerStableIds()
+        waitForResource("drawer_search").text = "a"
+        assertTrue(eventually { drawerStableIds().size > 1 })
+        val searchRankedNormally = drawerStableIds()
 
         device.pressBack()
         assertTrue(eventually { !isImeVisible() })
@@ -261,16 +264,22 @@ class LauncherUiTest {
 
         openDrawer()
         assertTrue(eventually { isImeVisible() })
-        assertTrue("drawer order did not reverse", eventually { drawerStableIds() == rankedNormally.asReversed() })
+        assertTrue("blank search reversed the drawer", eventually {
+            drawerStableIds() == unfilteredNormally && drawerFirstVisiblePosition() == 0
+        })
+        waitForResource("drawer_search").text = "a"
+        assertTrue("search results did not reverse", eventually {
+            drawerStableIds() == searchRankedNormally.asReversed()
+        })
         assertTrue(
-            "most relevant app was not anchored at the bottom: ${drawerVisiblePositions()} of ${rankedNormally.size}",
-            eventually { drawerLastVisiblePosition() == rankedNormally.lastIndex },
+            "most relevant app was not anchored at the bottom: ${drawerVisiblePositions()} of ${searchRankedNormally.size}",
+            eventually { drawerLastVisiblePosition() == searchRankedNormally.lastIndex },
         )
 
         device.pressBack()
         assertTrue(eventually { !isImeVisible() })
         assertTrue(eventually {
-            drawerStableIds() == rankedNormally && drawerFirstVisiblePosition() == 0
+            drawerStableIds() == searchRankedNormally && drawerFirstVisiblePosition() == 0
         })
     }
 

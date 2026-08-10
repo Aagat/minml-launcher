@@ -1114,6 +1114,7 @@ class MainActivity : Activity() {
                         visibleApps,
                         preferences.reverseAppListWithKeyboard,
                         imeVisible,
+                        searchInput.text?.isNotBlank() == true,
                     )?.let(::launchApp)
                     true
                 } else false
@@ -1372,10 +1373,12 @@ class MainActivity : Activity() {
         if (!::searchInput.isInitialized) return
         val catalog = AppPresentationPolicy.visibleCatalog(allApps, preferences.hiddenApps, preferences.appAliases)
         val scoped = FilterEngine.apply(catalog, currentFilter, membership(currentFilter))
+        val query = searchInput.text?.toString().orEmpty()
         visibleApps = DrawerListOrderPolicy.order(
-            AppSearch.rank(scoped, searchInput.text?.toString().orEmpty()),
+            AppSearch.rank(scoped, query),
             preferences.reverseAppListWithKeyboard,
             imeVisible,
+            query.isNotBlank(),
         )
         val header = DrawerHeaderPolicy.content(
             launcherText(currentFilter.displayName),
@@ -1402,7 +1405,7 @@ class MainActivity : Activity() {
     }
 
     private fun positionAppListForOrder() {
-        if (preferences.reverseAppListWithKeyboard && imeVisible) {
+        if (preferences.reverseAppListWithKeyboard && imeVisible && searchInput.text?.isNotBlank() == true) {
             appList.smoothScrollToPosition(visibleApps.lastIndex.coerceAtLeast(0))
         } else {
             appList.smoothScrollToPosition(0)
