@@ -86,7 +86,7 @@ class WeatherRepository(private val runtime: SharedPreferences) {
             callback(WeatherResult.Available(cached, false))
             return
         }
-        if (cached != null && cacheState == WeatherCacheState.STALE) {
+        if (cached != null && cacheState != WeatherCacheState.FRESH) {
             callback(WeatherResult.Available(cached, true))
         }
         executor.execute {
@@ -95,7 +95,7 @@ class WeatherRepository(private val runtime: SharedPreferences) {
                 writeCache(snapshot, latitude, longitude)
                 callback(WeatherResult.Available(snapshot, false))
             }.onFailure {
-                if (cached == null || cacheState == WeatherCacheState.EXPIRED) {
+                if (cached == null) {
                     callback(WeatherResult.Unavailable("weather unavailable"))
                 }
             }

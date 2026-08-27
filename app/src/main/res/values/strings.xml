@@ -6,7 +6,6 @@
     <string name="no_matching_apps">No matching apps</string>
     <string name="search_hint">Search</string>
     <string name="weather_set_manual_location">Weather · set manual location</string>
-    <string name="weather_loading">Weather · loading</string>
     <string name="weather_manual_disclosure">Manual coordinates are sent to Open-Meteo. Location permission is not required.</string>
     <string name="weather_location_disclosure">Approximate device coordinates are requested only while weather is enabled and are sent to Open-Meteo. Manual coordinates remain an optional fallback.</string>
     <string name="weather_manual_location">Manual coordinates</string>
