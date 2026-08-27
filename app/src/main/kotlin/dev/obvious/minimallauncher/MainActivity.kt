@@ -125,6 +125,8 @@ class MainActivity : Activity() {
     private var weatherRequestedAt = 0L
     private var locationRequestInFlight = false
     private var locationDeniedThisSession = false
+    private var weatherSpinnerRunning = false
+    private var weatherSpinnerFrame = 0
     private var screenTimeRequestedAt = 0L
     private var screenTimeRequestGeneration = 0
     private var screenTimeRequestInFlight = false
@@ -211,6 +213,7 @@ class MainActivity : Activity() {
         applyStatusBarPreference()
         if (::homeRolePrompt.isInitialized) updateHomeRolePrompt()
         updateScreenTime(force = true)
+        updateWeather()
         if (settingsPage != null) renderSettingsPage()
     }
 
@@ -236,6 +239,7 @@ class MainActivity : Activity() {
         weatherRepository.close()
         screenTimeRepository.close()
         coarseLocationResolver.cancel()
+        stopWeatherSpinner()
         runCatching { wallpaperManager.removeOnColorsChangedListener(wallpaperColorsChangedListener) }
         super.onDestroy()
     }
@@ -913,6 +917,11 @@ class MainActivity : Activity() {
             visibility = View.GONE
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
             setPadding(0, dp(8), 0, 0)
+            contentDescription = "Weather. Tap to refresh."
+            setOnClickListener {
+                weatherRequestedAt = 0L
+                updateWeather()
+            }
         }
         clockPanel.addView(timeView, LinearLayout.LayoutParams(WRAP, WRAP))
         clockPanel.addView(dateView, LinearLayout.LayoutParams(WRAP, WRAP))
@@ -1708,6 +1717,7 @@ class MainActivity : Activity() {
     private fun updateWeather() {
         if (!preferences.weatherEnabled) {
             weatherView.visibility = View.GONE
+            stopWeatherSpinner()
             coarseLocationResolver.cancel()
             locationRequestInFlight = false
             return
@@ -1731,7 +1741,7 @@ class MainActivity : Activity() {
         }
         if (System.currentTimeMillis() - weatherRequestedAt < WEATHER_REFRESH_INTERVAL_MS || locationRequestInFlight) return
         locationRequestInFlight = true
-        setWeatherText(getString(R.string.weather_loading))
+        startWeatherSpinner()
         coarseLocationResolver.resolve { approximate ->
             locationRequestInFlight = false
             if (!preferences.weatherEnabled || preferences.weatherLocationMode != WeatherLocationMode.APPROXIMATE) return@resolve
@@ -1854,7 +1864,7 @@ class MainActivity : Activity() {
     private fun loadWeather(coordinates: WeatherCoordinates) {
         if (System.currentTimeMillis() - weatherRequestedAt < WEATHER_REFRESH_INTERVAL_MS) return
         weatherRequestedAt = System.currentTimeMillis()
-        setWeatherText(getString(R.string.weather_loading))
+        startWeatherSpinner()
         weatherRepository.load(
             coordinates.latitude,
             coordinates.longitude,
@@ -1862,25 +1872,53 @@ class MainActivity : Activity() {
         ) { result ->
             handler.post {
                 if (!preferences.weatherEnabled) return@post
-                setWeatherText(when (result) {
-                    is WeatherResult.Available -> with(result.snapshot) {
-                        getString(
-                            R.string.weather_summary,
-                            temperature,
-                            unit,
-                            condition,
-                            high,
-                            low,
-                            if (result.stale) getString(R.string.weather_stale_suffix) else "",
-                        )
+                when (result) {
+                    is WeatherResult.Available -> setWeatherText(
+                        with(result.snapshot) {
+                            getString(
+                                R.string.weather_summary,
+                                temperature,
+                                unit,
+                                condition,
+                                high,
+                                low,
+                                if (result.stale) getString(R.string.weather_stale_suffix) else "",
+                            )
+                        },
+                    )
+                    is WeatherResult.Unavailable -> {
+                        weatherRequestedAt = 0L
+                        setWeatherText(result.message)
                     }
-                    is WeatherResult.Unavailable -> result.message
-                })
+                }
             }
         }
     }
 
+    private fun startWeatherSpinner() {
+        if (weatherSpinnerRunning) return
+        weatherSpinnerRunning = true
+        weatherSpinnerFrame = 0
+        weatherView.text = WEATHER_SPINNER_FRAMES[0]
+        handler.postDelayed(weatherSpinnerTick, WEATHER_SPINNER_INTERVAL_MS)
+    }
+
+    private val weatherSpinnerTick = object : Runnable {
+        override fun run() {
+            if (!weatherSpinnerRunning) return
+            weatherSpinnerFrame = (weatherSpinnerFrame + 1) % WEATHER_SPINNER_FRAMES.size
+            weatherView.text = WEATHER_SPINNER_FRAMES[weatherSpinnerFrame]
+            handler.postDelayed(this, WEATHER_SPINNER_INTERVAL_MS)
+        }
+    }
+
+    private fun stopWeatherSpinner() {
+        weatherSpinnerRunning = false
+        handler.removeCallbacks(weatherSpinnerTick)
+    }
+
     private fun setWeatherText(value: String) {
+        stopWeatherSpinner()
         weatherView.text = launcherText(value)
     }
 
@@ -3339,6 +3377,8 @@ class MainActivity : Activity() {
         const val FILTER_TRANSITION_IN_MS = 110L
         const val FILTER_TRANSITION_DIM_ALPHA = 0.18f
         const val WEATHER_REFRESH_INTERVAL_MS = 60 * 60 * 1000L
+        const val WEATHER_SPINNER_INTERVAL_MS = 120L
+        private val WEATHER_SPINNER_FRAMES = listOf("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
         const val SCREEN_TIME_REFRESH_INTERVAL_MS = 30_000L
         const val DETAILED_USAGE_APP_LIMIT = 4
         const val SETTINGS_BACKGROUND_COLOR = 0xFF0B0B0D.toInt()
